@@ -75,8 +75,8 @@ See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
 ## 7. Operations
 - [ ] 7.1 Structured JSON request logs with route group, status, duration and replica, and no secrets (Spring Boot structured logging)
 - [ ] 7.2 Start-up refuses to run without the signing key, naming the missing variable
-- [ ] 7.3 Security headers on every response (CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`)
-- [ ] 7.4 `/openapi.json` and Swagger UI at `/api-docs` (springdoc, as in the reverted PR #12), plus the SSO endpoints the library serves
+- [x] 7.3 Security headers on every response (CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`)
+- [x] 7.4 `/openapi.json` and Swagger UI at `/api-docs` (springdoc, as in the reverted PR #12), plus the SSO endpoints the library serves
 - [ ] 7.5 Start-up data: the first admin from `APP_BOOTSTRAP_ADMIN_*` in production; demo data with `APP_DEMO_PASSWORD` on staging and in development
 - [ ] 7.6 Spike test (`loadtest/`) against production, results in `docs/slo.md`
 

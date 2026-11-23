@@ -1,5 +1,10 @@
 package bg.tusofia.unicloud.portal.directory;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
+import bg.tusofia.unicloud.portal.config.OpenApiConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
 import bg.tusofia.unicloud.portal.academic.domain.Faculty;
 import bg.tusofia.unicloud.portal.exception.ResourceNotFoundException;
@@ -28,6 +33,8 @@ import java.util.Optional;
  * token with scope {@code directory} gets here (DirectorySecurityConfig). The shapes and names
  * are those of the SSO claims.
  */
+@Tag(name = "Directory", description = "Read who is who, with no user present (docs/sso.md, \"The directory API\")")
+@SecurityRequirement(name = OpenApiConfig.DIRECTORY_TOKEN, scopes = AccessTokenDecoders.DIRECTORY_SCOPE)
 @RestController
 @RequestMapping("/api/v1/directory")
 public class DirectoryController {
@@ -53,6 +60,7 @@ public class DirectoryController {
     }
 
     /** {@code {sub, role, given_name, family_name, name, email, faculty, student}}. */
+    @Operation(summary = "A user, with the claim shapes")
     @GetMapping("/users/{sub}")
     public Map<String, Object> user(@PathVariable String sub) {
         Map<String, Object> claims = userClaims.forSubject(sub, USER_SCOPES)
@@ -68,6 +76,7 @@ public class DirectoryController {
     }
 
     /** A student's ENROLLED offerings: {@code [{id, code, title, semester}]}. */
+    @Operation(summary = "A student's courses")
     @GetMapping("/users/{sub}/enrollments")
     public List<Map<String, Object>> enrollments(@PathVariable String sub) {
         User student = enabledUser(sub, Role.STUDENT).orElseThrow(() -> notFound("Student", sub));
@@ -75,6 +84,7 @@ public class DirectoryController {
     }
 
     /** The offerings a teacher teaches: {@code [{id, code, title, semester}]}. */
+    @Operation(summary = "The courses a teacher teaches")
     @GetMapping("/users/{sub}/offerings")
     public List<Map<String, Object>> offerings(@PathVariable String sub) {
         User teacher = enabledUser(sub, Role.TEACHER).orElseThrow(() -> notFound("Teacher", sub));
@@ -82,6 +92,7 @@ public class DirectoryController {
     }
 
     /** The ENROLLED students of an offering: {@code [{sub, name, faculty_number}]}. */
+    @Operation(summary = "The students enrolled in a course")
     @GetMapping("/offerings/{id}/students")
     public List<Map<String, Object>> offeringStudents(@PathVariable long id) {
         if (!queries.offeringExists(id)) {
@@ -91,6 +102,7 @@ public class DirectoryController {
     }
 
     /** {@code [{id, code, title, semester, teacher_sub}]}, 200 per page. */
+    @Operation(summary = "A faculty's courses, 200 per page")
     @GetMapping("/faculties/{code}/offerings")
     public ResponseEntity<List<Map<String, Object>>> facultyOfferings(
             @PathVariable String code,
@@ -102,6 +114,7 @@ public class DirectoryController {
     }
 
     /** {@code [{sub, name, faculty_number, specialty, study_year, status}]}, 200 per page. */
+    @Operation(summary = "A faculty's students, 200 per page")
     @GetMapping("/faculties/{code}/students")
     public ResponseEntity<List<Map<String, Object>>> facultyStudents(
             @PathVariable String code,

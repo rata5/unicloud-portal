@@ -186,7 +186,16 @@ class StagingToolsTests {
         mockMvc.perform(get("/staging"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("Staging tools")));
+                .andExpect(content().string(containsString("Staging tools")))
+                .andExpect(content().string(containsString("<script src=\"/staging/staging.js\"></script>")));
+        // The page's script is a file: the Content-Security-Policy allows no inline script
+        mockMvc.perform(get("/staging/staging.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/v1/staging/roles")));
+        // On staging the API reference lists the staging tools
+        mockMvc.perform(get("/openapi.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/staging/users'].post").exists());
 
         mockMvc.perform(get("/api/v1/staging/roles"))
                 .andExpect(status().isOk())

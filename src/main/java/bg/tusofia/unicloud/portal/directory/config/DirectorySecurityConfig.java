@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.directory.config;
 
+import bg.tusofia.unicloud.portal.config.SecurityHeaders;
 import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -33,6 +34,7 @@ public class DirectorySecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                .headers(SecurityHeaders.everywhere())
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(resource -> resource
                         .jwt(jwt -> jwt.decoder(AccessTokenDecoders.forDirectory(jwkSource, authorizationService))))

@@ -84,6 +84,7 @@ If the user already has a portal SSO session, step 4 is skipped: the portal send
 | `GET /userinfo` | The user's claims, for a module's access token. |
 | `GET /connect/logout` | Ends the portal's SSO session. See [Logout](#logout). |
 | `GET /api/v1/directory/...` | Read who is who, with no user present. See [The directory API](#the-directory-api). |
+| `GET /api-docs` | Interactive API reference (Swagger UI) for every endpoint a module's backend calls. The machine-readable file is `GET /openapi.json` (OpenAPI 3.1). |
 
 ## What a module must build
 

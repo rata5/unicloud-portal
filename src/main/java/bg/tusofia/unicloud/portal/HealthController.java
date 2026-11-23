@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal;
 
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ public class HealthController {
     }
 
     /** Cheap on purpose: no database call. The deploy waits until this shows the new commit SHA. */
+    @Operation(summary = "Liveness and the running commit", tags = "Operations")
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("status", "ok", "version", version);

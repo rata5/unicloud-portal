@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.auth.infrastructure.security.config;
 
+import bg.tusofia.unicloud.portal.config.SecurityHeaders;
 import jakarta.servlet.DispatcherType;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -64,6 +65,7 @@ public class SecurityConfig {
                                 SessionCreationPolicy.STATELESS))
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                .headers(SecurityHeaders.everywhere())
                 .authorizeHttpRequests(auth -> auth
                         // Error pages for requests already answered with an error status, for
                         // example the plain 400 of /oauth2/authorize for an unknown module
@@ -75,6 +77,16 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/health",
                                 "/"
+                        ).permitAll()
+                        // The API reference (springdoc): it describes the module-facing API and holds
+                        // no data. Calling an endpoint from it still needs that endpoint's token.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/openapi.json",
+                                "/openapi.json/**",
+                                "/api-docs",
+                                "/api-docs/**",
+                                "/swagger-ui/**"
                         ).permitAll()
                         // The frontend's static files (src/main/resources/static). The pages hold no
                         // data: they call the API, which still requires a token.
@@ -98,7 +110,7 @@ public class SecurityConfig {
                         ).permitAll()
                         // Staging only: the staging tools need no login (StagingToolsController).
                         // On any other profile the routes do not exist and stay closed.
-                        .requestMatchers("/staging", "/api/v1/staging/**")
+                        .requestMatchers("/staging", "/staging/**", "/api/v1/staging/**")
                         .access((authentication, context) -> new AuthorizationDecision(
                                 environment.matchesProfiles("staging")))
                         .anyRequest().authenticated()

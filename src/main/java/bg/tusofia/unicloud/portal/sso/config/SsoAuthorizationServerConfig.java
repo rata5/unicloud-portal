@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
+import bg.tusofia.unicloud.portal.config.SecurityHeaders;
 import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
 import bg.tusofia.unicloud.portal.sso.infrastructure.DirectoryTokenRequestConverter;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -143,6 +144,7 @@ public class SsoAuthorizationServerConfig {
                                     }))));
                 })
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .headers(SecurityHeaders.everywhere())
                 // A browser without a session goes to the login page; the request it came with is
                 // kept in the session, and the login page resumes it afterwards.
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(

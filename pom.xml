@@ -99,6 +99,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-session-jdbc</artifactId>
 		</dependency>
+		<!-- The API reference: OpenAPI 3.1 at /openapi.json and Swagger UI at /api-docs.
+		     springdoc 3.x is the line for Spring Boot 4; 3.2.0 is built against Boot 4.1.2 -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.2.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
