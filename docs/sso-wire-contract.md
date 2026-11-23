@@ -281,6 +281,18 @@ The Java portal keeps everything above that `sso.md` sections 1 to 10 promise to
 - **Spelling.** New wire names use US "enrollment", as the existing permission names do.
 - **Unverified items are decided, not inherited.** Where this file says Unverified (Spring default), the Java portal keeps what the recording shows, unless the recording contradicts `sso.md`. Then `sso.md` wins and the configuration changes (task group 4).
 
+## Decided in the Java portal (task group 4)
+
+These items above are no longer Spring defaults. Each is pinned by a test:
+
+- **Discovery** lists only `issuer`, the five endpoints (authorize, token, JWKS, userinfo, logout), `response_types_supported` `["code"]`, `grant_types_supported` `["authorization_code"]`, `code_challenge_methods_supported` `["S256"]`, `subject_types_supported`, `id_token_signing_alg_values_supported`, `token_endpoint_auth_methods_supported` `["client_secret_basic"]` and `scopes_supported` `["openid", "profile", "email", "unicloud"]`. `/.well-known/oauth-authorization-server` is narrowed the same way (`SsoFlowTests.discoveryListsOnlyWhatThePortalServes`).
+- **Revocation, introspection, device and pushed-authorization endpoints** answer 404 (`endpointsThePortalDoesNotOfferAnswer404`, `SsoPlainErrorPageTests`).
+- **An unknown module** at `/oauth2/authorize` gets a plain 400 with no redirect. The 401 with no body came from the servlet error dispatch to `/error`, which the API chain refused to anonymous callers (`SsoPlainErrorPageTests`).
+- **`openid` is required.** Without it the module's trusted callback gets `error=invalid_request` (`loginWithoutOpenidIsSentBackToTheModule`).
+- **Access tokens** carry the header `typ: at+jwt` and a `client_id` claim. ID tokens still carry no `typ` (`accessTokensAreTypedAndNameTheirModule`).
+- **Reserved client ids**: every `unicloud-*` id and ids made only of digits (`theApiAudienceCannotBeAClientId`).
+- **Still open**: `response_type` other than `code` with a trusted callback. The spec asks for a redirect with `unsupported_response_type`; the library answers before the callback is checked, so the portal gives a plain 400 (task 4.2b).
+
 ## Recorded from the Java staging (2026-11-20)
 
 The file `tests/golden/java-staging-2026-11-20.json` on the fork's `rust-rewrite` branch holds a recording of the live Java staging. Secrets, tokens and codes are redacted. It settles these "Unverified" items:

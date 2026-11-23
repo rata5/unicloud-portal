@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.auth.infrastructure.security.config;
 
+import jakarta.servlet.DispatcherType;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -64,6 +65,10 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .authorizeHttpRequests(auth -> auth
+                        // Error pages for requests already answered with an error status, for
+                        // example the plain 400 of /oauth2/authorize for an unknown module
+                        // (sso-provider spec). Without this an anonymous caller got 401 instead.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // The deploy polls /health until it reports the new commit, and / shows
                         // which replica answered (README, "Rules the code must follow")
                         .requestMatchers(

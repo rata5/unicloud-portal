@@ -1,9 +1,11 @@
 package bg.tusofia.unicloud.portal.sso.infrastructure;
 
 import bg.tusofia.unicloud.portal.sso.application.SsoCallbackPolicy;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationContext;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationException;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
@@ -26,6 +28,10 @@ import java.util.function.Consumer;
  *
  * <p>{@code allowlist}: the library's checks run unchanged, then the callback's host must still
  * be allowed. A refused /oauth2/authorize answers 400 without a redirect.
+ *
+ * <p>Once the callback is trusted, the request must ask for {@code openid}: the portal is an
+ * OpenID Connect provider, and a login without an ID token is not one it offers. Without it the
+ * error goes back to the module's callback as {@code invalid_request} (sso-provider spec).
  */
 public final class SsoCallbackValidators {
 
@@ -46,6 +52,7 @@ public final class SsoCallbackValidators {
                 library.accept(redirectUri != null && policy.permits(redirectUri)
                         ? withCallback(context, redirectUri)
                         : context);
+                requireOpenId(request, redirectUri);
                 return;
             }
 
@@ -55,7 +62,21 @@ public final class SsoCallbackValidators {
                 throw new OAuth2AuthorizationCodeRequestAuthenticationException(
                         invalidRequest("redirect_uri"), null);
             }
+            requireOpenId(request, used);
         };
+    }
+
+    /** Called only once {@code callback} is trusted, so the error may be sent back to it. */
+    private static void requireOpenId(OAuth2AuthorizationCodeRequestAuthenticationToken request, String callback) {
+        if (request.getScopes().contains(OidcScopes.OPENID)) {
+            return;
+        }
+        OAuth2AuthorizationCodeRequestAuthenticationToken toCallback = new OAuth2AuthorizationCodeRequestAuthenticationToken(
+                request.getAuthorizationUri(), request.getClientId(), (Authentication) request.getPrincipal(),
+                callback, request.getState(), request.getScopes(), request.getAdditionalParameters());
+        throw new OAuth2AuthorizationCodeRequestAuthenticationException(
+                new OAuth2Error(OAuth2ErrorCodes.INVALID_REQUEST, "OAuth 2.0 Parameter: scope must contain openid", null),
+                toCallback);
     }
 
     public static Consumer<OidcLogoutAuthenticationContext> logout(SsoCallbackPolicy policy) {

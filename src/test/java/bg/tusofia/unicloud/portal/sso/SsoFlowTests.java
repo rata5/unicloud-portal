@@ -34,6 +34,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -365,6 +366,16 @@ class SsoFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(clientJson("unicloud-api", "https://api.example/auth/callback")))
                 .andExpect(status().isBadRequest());
+
+        // Every unicloud-* id is the portal's, and an all-digit id looks like a user's sub
+        for (String reserved : List.of("unicloud-directory", "unicloud-" + shortId(), "12345")) {
+            mockMvc.perform(post("/api/v1/sso/clients")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(ADMIN_ID, "ADMIN"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(clientJson(reserved, "https://api.example/auth/callback")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("clientId: '" + reserved + "' is reserved"));
+        }
     }
 
     @Test
@@ -462,6 +473,74 @@ class SsoFlowTests {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void discoveryListsOnlyWhatThePortalServes() throws Exception {
+        JsonNode discovery = json.readTree(mockMvc.perform(get("/.well-known/openid-configuration"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        List<String> fields = discovery.properties().stream().map(java.util.Map.Entry::getKey).sorted().toList();
+        assertThat(fields).containsExactly(
+                "authorization_endpoint", "code_challenge_methods_supported", "end_session_endpoint",
+                "grant_types_supported", "id_token_signing_alg_values_supported", "issuer", "jwks_uri",
+                "response_types_supported", "scopes_supported", "subject_types_supported",
+                "token_endpoint", "token_endpoint_auth_methods_supported", "userinfo_endpoint");
+        assertThat(discovery.get("grant_types_supported").toString()).isEqualTo("[\"authorization_code\"]");
+        assertThat(discovery.get("token_endpoint_auth_methods_supported").toString()).isEqualTo("[\"client_secret_basic\"]");
+        assertThat(discovery.get("code_challenge_methods_supported").toString()).isEqualTo("[\"S256\"]");
+        assertThat(discovery.get("scopes_supported").toString())
+                .isEqualTo("[\"openid\",\"profile\",\"email\",\"unicloud\"]");
+        String issuer = discovery.get("issuer").asString();
+        for (String endpoint : List.of("authorization_endpoint", "token_endpoint", "jwks_uri",
+                "userinfo_endpoint", "end_session_endpoint")) {
+            assertThat(discovery.get(endpoint).asString()).as(endpoint).startsWith(issuer);
+        }
+
+        JsonNode oauthMetadata = json.readTree(mockMvc.perform(get("/.well-known/oauth-authorization-server"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(oauthMetadata.has("revocation_endpoint")).isFalse();
+        assertThat(oauthMetadata.has("introspection_endpoint")).isFalse();
+        assertThat(oauthMetadata.get("grant_types_supported").toString()).isEqualTo("[\"authorization_code\"]");
+    }
+
+    @Test
+    void endpointsThePortalDoesNotOfferAnswer404() throws Exception {
+        for (String path : List.of("/oauth2/revoke", "/oauth2/introspect", "/oauth2/device_authorization")) {
+            mockMvc.perform(post(path)).andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void loginWithoutOpenidIsSentBackToTheModule() throws Exception {
+        Client client = registerClient();
+
+        String location = mockMvc.perform(authorize(client, new Pkce(), "profile email"))
+                .andExpect(status().isFound())
+                .andReturn().getResponse().getRedirectedUrl();
+        assertThat(location).startsWith(client.redirectUri() + "?error=invalid_request");
+        assertThat(location).contains("state=" + STATE);
+    }
+
+    @Test
+    void accessTokensAreTypedAndNameTheirModule() throws Exception {
+        Client client = registerClient();
+        Pkce pkce = new Pkce();
+        String code = loginAndGetCode(client, pkce);
+        JsonNode tokens = json.readTree(mockMvc.perform(exchange(client, code, pkce.verifier()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        String accessToken = tokens.get("access_token").asString();
+
+        assertThat(jwtHeader(accessToken).get("typ").asString()).isEqualTo("at+jwt");
+        assertThat(payload(accessToken).get("client_id").asString()).isEqualTo(client.clientId());
+        assertThat(jwtHeader(tokens.get("id_token").asString()).has("typ"))
+                .as("ID tokens carry no typ, so a module can tell the two apart").isFalse();
+
+        mockMvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+    }
+
     // ---- helpers ----
 
     private record Client(String clientId, String secret, String redirectUri) {
@@ -541,6 +620,10 @@ class SsoFlowTests {
 
     private static String logoutUri(String redirectUri) {
         return redirectUri.replace("/auth/callback", "/logged-out");
+    }
+
+    private JsonNode jwtHeader(String jwt) throws Exception {
+        return json.readTree(Base64.getUrlDecoder().decode(jwt.split("\\.")[0]));
     }
 
     private JsonNode payload(String jwt) throws Exception {

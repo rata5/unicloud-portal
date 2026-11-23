@@ -1,5 +1,24 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.JwtTypeValidator;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import jakarta.servlet.Filter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import bg.tusofia.unicloud.portal.sso.application.SsoCallbackPolicy;
 import bg.tusofia.unicloud.portal.sso.application.SsoUserClaims;
 import bg.tusofia.unicloud.portal.sso.infrastructure.SsoCallbackValidators;
@@ -17,7 +36,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -76,6 +94,18 @@ public class SsoAuthorizationServerConfig {
     /** The only SSO endpoint that takes a Bearer token: a module's access token. */
     private static final String USERINFO_PATH = "/userinfo";
 
+    /**
+     * What the discovery documents list (sso-provider spec): only what the portal serves and
+     * docs/sso.md describes. The library's defaults also advertise revocation, introspection,
+     * other grant types and client authentication methods, and DPoP.
+     */
+    private static final Set<String> DISCOVERY_FIELDS = Set.of(
+            "issuer", "authorization_endpoint", "token_endpoint", "jwks_uri", "userinfo_endpoint",
+            "end_session_endpoint", "response_types_supported", "grant_types_supported",
+            "code_challenge_methods_supported", "subject_types_supported",
+            "id_token_signing_alg_values_supported", "token_endpoint_auth_methods_supported",
+            "scopes_supported");
+
     private static final Logger log = LoggerFactory.getLogger(SsoAuthorizationServerConfig.class);
 
     @Bean
@@ -85,6 +115,7 @@ public class SsoAuthorizationServerConfig {
             JWKSource<SecurityContext> jwkSource,
             SsoUserClaims userClaims,
             SsoCallbackPolicy callbackPolicy,
+            AuthorizationServerSettings settings,
             @Value("${app.sso.session-max-age}") Duration sessionMaxAge) throws Exception {
 
         http
@@ -98,7 +129,13 @@ public class SsoAuthorizationServerConfig {
                                             SsoCallbackValidators.authorization(callbackPolicy));
                                 }
                             })));
+                    server.authorizationServerMetadataEndpoint(metadata -> metadata
+                            .authorizationServerMetadataCustomizer(document -> document
+                                    .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)));
                     server.oidc(oidc -> oidc
+                            .providerConfigurationEndpoint(discovery -> discovery
+                                    .providerConfigurationCustomizer(document -> document
+                                            .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)))
                             .userInfoEndpoint(userInfo -> userInfo
                                     .userInfoMapper(context -> userInfo(context, userClaims)))
                             .logoutEndpoint(logout -> logout.authenticationProviders(providers ->
@@ -119,12 +156,68 @@ public class SsoAuthorizationServerConfig {
                 // token up in its own store, so a portal API token is refused there.
                 .oauth2ResourceServer(resource -> resource
                         .bearerTokenResolver(userInfoOnly())
-                        .jwt(jwt -> jwt.decoder(OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource))))
+                        .jwt(jwt -> jwt.decoder(accessTokenDecoder(jwkSource))))
                 .addFilterAfter(
                         new SsoSessionMaxAgeFilter(sessionMaxAge, Clock.systemUTC()),
-                        SecurityContextHolderFilter.class);
+                        SecurityContextHolderFilter.class)
+                .addFilterBefore(notServed(settings), SecurityContextHolderFilter.class);
 
         return http.build();
+    }
+
+    private static void onlyWhatIsServed(Map<String, Object> document) {
+        document.keySet().retainAll(DISCOVERY_FIELDS);
+        document.put("response_types_supported", List.of("code"));
+        document.put("grant_types_supported", List.of("authorization_code"));
+        document.put("code_challenge_methods_supported", List.of("S256"));
+        document.put("token_endpoint_auth_methods_supported", List.of("client_secret_basic"));
+        document.put("scopes_supported", List.of("openid", "profile", "email", SsoUserClaims.UNICLOUD_SCOPE));
+    }
+
+    /**
+     * The library's endpoints the portal does not offer (revocation, introspection, device flow,
+     * pushed authorization requests, dynamic client registration) answer 404, before the library
+     * sees the request. Discovery does not list them either.
+     */
+    private static Filter notServed(AuthorizationServerSettings settings) {
+        Set<String> paths = Stream.of(
+                        settings.getTokenRevocationEndpoint(),
+                        settings.getTokenIntrospectionEndpoint(),
+                        settings.getDeviceAuthorizationEndpoint(),
+                        settings.getDeviceVerificationEndpoint(),
+                        settings.getPushedAuthorizationRequestEndpoint(),
+                        settings.getClientRegistrationEndpoint(),
+                        settings.getOidcClientRegistrationEndpoint())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+        return (request, response, chain) -> {
+            if (paths.contains(((HttpServletRequest) request).getRequestURI())) {
+                ((HttpServletResponse) response).sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+            chain.doFilter(request, response);
+        };
+    }
+
+    /**
+     * Decodes the access tokens modules send to /userinfo. Like the library's own decoder, but it
+     * accepts the {@code typ: at+jwt} header the portal now puts on access tokens (RFC 9068).
+     * Tokens without a {@code typ} (issued before that, valid for at most 30 minutes) still
+     * decode; an ID token decodes too, but the library then finds no access token with that value
+     * in its store and answers 401.
+     */
+    private static JwtDecoder accessTokenDecoder(JWKSource<SecurityContext> jwkSource) {
+        DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
+        processor.setJWSTypeVerifier(new DefaultJOSEObjectTypeVerifier<>(new JOSEObjectType("at+jwt"), null));
+        processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, jwkSource));
+        // NimbusJwtDecoder checks the claims (exp, nbf) itself
+        processor.setJWTClaimsSetVerifier((claims, context) -> { });
+        NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
+        // Spring's default validators accept only typ JWT; keep their time checks
+        JwtTypeValidator type = new JwtTypeValidator("at+jwt");
+        type.setAllowEmpty(true);
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(new JwtTimestampValidator(), type));
+        return decoder;
     }
 
     /**
@@ -188,10 +281,20 @@ public class SsoAuthorizationServerConfig {
         return settings.build();
     }
 
-    /** Puts the user's claims into every ID token. A user deleted or disabled since login gets none. */
+    /**
+     * Access tokens: header {@code typ: at+jwt} (RFC 9068), so a module can tell them from ID
+     * tokens, which keep no {@code typ}; and a {@code client_id} claim (sso-provider spec).
+     *
+     * <p>ID tokens: the user's claims. A user deleted or disabled since login gets none.
+     */
     @Bean
-    OAuth2TokenCustomizer<JwtEncodingContext> idTokenClaims(SsoUserClaims userClaims) {
+    OAuth2TokenCustomizer<JwtEncodingContext> tokenClaims(SsoUserClaims userClaims) {
         return context -> {
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                context.getJwsHeader().type("at+jwt");
+                context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
+                return;
+            }
             if (!OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
                 return;
             }

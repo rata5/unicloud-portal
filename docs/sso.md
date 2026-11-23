@@ -180,6 +180,7 @@ Check all of these. Most OIDC libraries do it for you:
 - The RS256 signature checks out against the keys at `/oauth2/jwks`. Cache the keys. Fetch them again when a token has a `kid` you do not know.
 - `iss` is the portal's address, exactly as in the discovery document.
 - `aud` contains the module's own `client_id`.
+- It is an ID token, not an access token: access tokens carry the header `typ: at+jwt`, ID tokens have no `typ`. Never accept one in place of the other.
 - `exp` has not passed. Allow a small clock skew, for example 60 seconds.
 - `nonce` matches the value stored in the session.
 
@@ -303,7 +304,7 @@ On staging any user can have any mix of the eleven permissions, whatever the rol
 
 Production is strict. Before your module goes live, send the portal team:
 
-- the client id you want (lower-case letters, digits, dashes; `unicloud-api` is reserved),
+- the client id you want (2 to 63 lower-case letters, digits or dashes, not starting with a dash and not only digits; ids starting with `unicloud-` are reserved),
 - every callback URL, written out in full, each `https`,
 - every URL the user should land on after a logout everywhere, if you use it (see [Logout](#logout)),
 - the host names of those URLs, for example `library.tu-sofia.bg`.
@@ -362,7 +363,7 @@ Response `201`:
 ```
 
 - **The secret is shown once.** The portal stores only its BCrypt hash. Send it to the module team over a private channel.
-- `clientId`: 2 to 63 lower-case letters, digits or dashes. Registering the same one twice answers `409`. `unicloud-api` is reserved: it is the audience of the portal's own tokens.
+- `clientId`: 2 to 63 lower-case letters, digits or dashes, not starting with a dash. Registering the same one twice answers `409`. Ids starting with `unicloud-` are reserved (`unicloud-api` is the audience of the portal's own tokens), and so are ids made only of digits, which look like a user's `sub`.
 - Every URL must follow the environment's rule (see [Callback URLs per environment](#callback-urls-per-environment)). In production that means `https` on a listed host; the answer is `400` otherwise. Everywhere: no fragments, user info, `*` or `,`.
 - Module teams do not need an admin to develop: on staging they register themselves (see [Testing a module against staging](#testing-a-module-against-staging)).
 - Only the `ADMIN` role may register. Anyone else gets `403`. Every registration is logged with the admin's user id.

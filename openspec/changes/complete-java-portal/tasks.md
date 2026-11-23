@@ -51,15 +51,16 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [ ] 3.7 Tests: accounts, profile access, enrollment rules, a mixed race in `EnrollmentConcurrencyTests`
 
 ## 4. SSO provider alignment
-- [ ] 4.1 Discovery lists only what is served; revocation, introspection and device endpoints switched off
-- [ ] 4.2 Plain 400 page for an unknown client, a refused callback and a bad `response_type` without a trusted callback
-- [ ] 4.3 `invalid_request` when `openid` is missing from `scope`
-- [ ] 4.4 `client_id` in the access token
-- [ ] 4.5 `DiscoveryTests` and the new error cases in `SsoFlowTests`
-- [ ] 4.6 `docs/sso-wire-contract.md`: mark the decided items
-- [ ] 4.7 `typ: at+jwt` on access tokens; no `typ` on ID tokens
-- [ ] 4.8 Reserved module ids: every `unicloud-*` id and ids made only of digits
-- [ ] 4.9 `/connect/logout` without a valid `id_token_hint` asks for a confirmation with a CSRF-protected form
+- [x] 4.1 Discovery lists only what is served; revocation, introspection and device endpoints switched off
+- [x] 4.2 Plain 400 page for an unknown client, a refused callback and a bad `response_type` without a trusted callback
+- [ ] 4.2b `response_type` other than `code` with a trusted callback: the spec asks for a redirect with `unsupported_response_type`; the library answers before the callback is known, so today it is a plain 400. Decide: change the spec (fail closed) or add a converter that checks the callback first
+- [x] 4.3 `invalid_request` when `openid` is missing from `scope`
+- [x] 4.4 `client_id` in the access token
+- [x] 4.5 `DiscoveryTests` and the new error cases in `SsoFlowTests`
+- [x] 4.6 `docs/sso-wire-contract.md`: mark the decided items
+- [x] 4.7 `typ: at+jwt` on access tokens; no `typ` on ID tokens
+- [x] 4.8 Reserved module ids: every `unicloud-*` id and ids made only of digits
+- [ ] 4.9 `/connect/logout` without a valid `id_token_hint` asks for a confirmation with a CSRF-protected form (needs group 2's session, CSRF and Thymeleaf; done with it)
 
 ## 5. Directory
 - [ ] 5.1 `client_credentials` with the `directory` scope; validator for `invalid_scope`; `aud=unicloud-directory`; `unicloud-directory` reserved
