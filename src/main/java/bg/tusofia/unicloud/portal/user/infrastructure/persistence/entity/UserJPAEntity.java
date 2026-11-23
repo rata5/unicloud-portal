@@ -34,8 +34,14 @@ public class UserJPAEntity {
     @Column(name="permissions_mask", nullable = false)
     private Long permissionMask;
 
+    @Column(name = "faculty_code", length = 16)
+    private String facultyCode;
+
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
+
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
 
     @Generated(event = EventType.INSERT)
     @Column(name = "created_at", nullable = false,
@@ -59,7 +65,9 @@ public class UserJPAEntity {
             String lastName,
             Role role,
             Long permissionMask,
+            String facultyCode,
             boolean enabled,
+            boolean mustChangePassword,
             LocalDateTime createdAt) {
 
         this.id = id;
@@ -69,7 +77,9 @@ public class UserJPAEntity {
         this.lastName = lastName;
         this.role = role.toString();
         this.permissionMask = permissionMask;
+        this.facultyCode = facultyCode;
         this.enabled = enabled;
+        this.mustChangePassword = mustChangePassword;
         // Never written (insertable and updatable are false), but kept on the entity: saving an
         // existing user merges this object, and without it the saved user would come back with
         // no creation time, which User.reconstitute refuses.
@@ -83,7 +93,9 @@ public class UserJPAEntity {
     public String getLastName() { return lastName; }
     public String getRole() { return role; }
     public Long getPermissionMask() {return permissionMask; }
+    public String getFacultyCode() { return facultyCode; }
     public boolean isEnabled() { return enabled; }
+    public boolean isMustChangePassword() { return mustChangePassword; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

@@ -1,8 +1,12 @@
 package bg.tusofia.unicloud.portal.sso;
 
-import bg.tusofia.unicloud.portal.auth.application.AccessTokenIssuer;
+import bg.tusofia.unicloud.portal.support.PortalBrowser;
 import bg.tusofia.unicloud.portal.support.TestJwtKeys;
-import bg.tusofia.unicloud.portal.user.domain.User;
+import bg.tusofia.unicloud.portal.support.TestUsers;
+import bg.tusofia.unicloud.portal.user.domain.UserRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.filter.RequestContextFilter;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +28,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -40,9 +43,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "app.sso.callback-policy=any")
 class SsoAnyCallbackTests {
 
-    private static final long STUDENT_ID = 4L;
-    private static final long ADMIN_ID = 9L;
-    private static final String SESSION_COOKIE = "__Host-UNICLOUD_SSO";
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -63,15 +63,24 @@ class SsoAnyCallbackTests {
     private Filter sessionRepositoryFilter;
 
     @Autowired
-    private AccessTokenIssuer tokenIssuer;
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private MockMvc mockMvc;
+    private TestUsers users;
+    private PortalBrowser admin;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
-                .addFilters(sessionRepositoryFilter, springSecurityFilterChain)
+                .addFilters(sessionRepositoryFilter, new RequestContextFilter(), springSecurityFilterChain)
                 .build();
+        users = new TestUsers(userRepository, passwordEncoder, jdbc);
     }
 
     @Test
@@ -97,20 +106,14 @@ class SsoAnyCallbackTests {
                 .queryParam("code_challenge_method", "S256")
                 .build().encode().toUriString();
 
-        Cookie session = mockMvc.perform(get(URI.create(authorize)).accept(MediaType.TEXT_HTML))
-                .andExpect(status().isFound())
-                .andReturn().getResponse().getCookie(SESSION_COOKIE);
-        MockHttpServletResponse started = mockMvc.perform(post("/api/v1/auth/sso-session")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(STUDENT_ID, "STUDENT"))
-                        .cookie(session))
-                .andExpect(status().isOk())
-                .andReturn().getResponse();
-        Cookie loggedIn = started.getCookie(SESSION_COOKIE);
-        String continueUrl = json.readTree(started.getContentAsString()).get("continueUrl").asString();
+        PortalBrowser browser = new PortalBrowser(mockMvc);
+        assertThat(browser.perform(get(URI.create(authorize)).accept(MediaType.TEXT_HTML))
+                .getResponse().getRedirectedUrl()).endsWith("/login?sso=1");
+        String email = users.student("Тест", "Колбек", TestUsers.facultyNumber(), 1).email();
+        String continueUrl = browser.signIn(email, TestUsers.PASSWORD).getResponse().getRedirectedUrl();
 
-        String redirect = mockMvc.perform(get(URI.create(continueUrl)).cookie(loggedIn).accept(MediaType.TEXT_HTML))
-                .andExpect(status().isFound())
-                .andReturn().getResponse().getRedirectedUrl();
+        String redirect = browser.perform(get(URI.create(continueUrl)).accept(MediaType.TEXT_HTML))
+                .getResponse().getRedirectedUrl();
         assertThat(redirect).startsWith(callback + "?code=");
         String code = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams().getFirst("code");
 
@@ -125,45 +128,40 @@ class SsoAnyCallbackTests {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
 
-        String afterLogout = mockMvc.perform(get("/connect/logout")
+        String afterLogout = browser.perform(get("/connect/logout")
                         .queryParam("id_token_hint", tokens.get("id_token").asString())
                         .queryParam("client_id", clientId)
-                        .queryParam("post_logout_redirect_uri", logoutTarget)
-                        .cookie(loggedIn))
-                .andExpect(status().isFound())
-                .andReturn().getResponse().getRedirectedUrl();
+                        .queryParam("post_logout_redirect_uri", logoutTarget))
+                .getResponse().getRedirectedUrl();
         assertThat(afterLogout).isEqualTo(logoutTarget);
     }
 
     @Test
     void stillNoNonWebCallbacks() throws Exception {
-        mockMvc.perform(post("/api/v1/sso/clients")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ADMIN_ID, "ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(clientJson("module-" + shortId(), "javascript:alert(1)")))
-                .andExpect(status().isBadRequest());
+        assertThat(admin().post(MODULES, clientJson("module-" + shortId(), "javascript:alert(1)")).status())
+                .isEqualTo(400);
+    }
+
+    /** The app's route for registering a module (an admin's page, Модули). */
+    private static final String MODULES = "/api/v1/portal/admin/modules";
+
+    private PortalBrowser admin() throws Exception {
+        if (admin == null) {
+            admin = PortalBrowser.signedIn(mockMvc, users.staff("ADMIN", null).email(), TestUsers.PASSWORD);
+        }
+        return admin;
     }
 
     private String register(String clientId, String redirectUri) throws Exception {
-        return json.readTree(mockMvc.perform(post("/api/v1/sso/clients")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(ADMIN_ID, "ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(clientJson(clientId, redirectUri)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString()).get("clientSecret").asString();
+        PortalBrowser.Answer registered = admin().post(MODULES, clientJson(clientId, redirectUri));
+        assertThat(registered.status()).as("registration of " + clientId).isEqualTo(201);
+        return registered.json().get("clientSecret").asString();
     }
 
     private static String clientJson(String clientId, String redirectUri) {
         return """
                 {"clientId": "%s", "name": "Test module", "redirectUris": ["%s"]}
                 """.formatted(clientId, redirectUri);
-    }
-
-    private String bearer(long userId, String role) {
-        LocalDateTime now = LocalDateTime.now();
-        User user = User.reconstitute(userId, "someone@tu-sofia.bg", "hash", "Test", "User",
-                role, null, true, now, now);
-        return "Bearer " + tokenIssuer.issue(user).value();
     }
 
     private static String shortId() {

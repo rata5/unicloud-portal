@@ -14,6 +14,8 @@ import java.util.List;
  * @param name                   shown in logs and to admins
  * @param redirectUris           every callback URL the module will use, written out in full
  * @param postLogoutRedirectUris where the module may send the user after /connect/logout; may be empty
+ * @param directory              true: the module's backend may call the directory API with a
+ *                               client-credentials token (docs/sso.md); null or false: it may not
  */
 public record RegisterSsoClientRequest(
         @NotBlank
@@ -28,6 +30,7 @@ public record RegisterSsoClientRequest(
         @NotEmpty
         List<@NotBlank String> redirectUris,
 
-        List<@NotBlank String> postLogoutRedirectUris
+        List<@NotBlank String> postLogoutRedirectUris,
+        Boolean directory
 ) {
 }

@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.staging;
 
+import bg.tusofia.unicloud.portal.support.PortalBrowser;
 import bg.tusofia.unicloud.portal.sso.application.SsoCallbackPolicy;
 import bg.tusofia.unicloud.portal.support.TestJwtKeys;
 import jakarta.servlet.Filter;
@@ -18,8 +19,6 @@ import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +56,10 @@ class StagingToolsTests {
     private Filter springSecurityFilterChain;
 
     @Autowired
+    @Qualifier("springSessionRepositoryFilter")
+    private Filter sessionRepositoryFilter;
+
+    @Autowired
     private SsoCallbackPolicy callbackPolicy;
 
     private MockMvc mockMvc;
@@ -64,7 +67,7 @@ class StagingToolsTests {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
-                .addFilters(springSecurityFilterChain)
+                .addFilters(sessionRepositoryFilter, springSecurityFilterChain)
                 .build();
     }
 
@@ -73,14 +76,15 @@ class StagingToolsTests {
         String email = uniqueEmail();
         mockMvc.perform(post("/api/v1/staging/users")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(userJson(email, "TEACHER", "[\"STUDENT_PROFILE_READ_ANY\", \"COURSE_CREATE_MODIFY\"]", null)))
+                        .content(userJson(email, "TEACHER", "FCST", "[\"STUDENT_PROFILE_READ_ANY\", \"COURSE_CREATE_MODIFY\"]", null)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.role").value("TEACHER"))
+                .andExpect(jsonPath("$.faculty").value("FCST"))
                 .andExpect(jsonPath("$.permissions.length()").value(2));
 
-        JsonNode token = loginToken(email);
-        assertThat(token.get("role").asString()).isEqualTo("TEACHER");
-        assertThat(token.get("permissions").toString())
+        JsonNode user = signedInUser(email);
+        assertThat(user.get("role").asString()).isEqualTo("TEACHER");
+        assertThat(user.get("permissions").toString())
                 .contains("STUDENT_PROFILE_READ_ANY", "COURSE_CREATE_MODIFY")
                 .doesNotContain("COURSE_OFFERING_READ");
     }
@@ -89,7 +93,7 @@ class StagingToolsTests {
     void withoutAListAUserGetsTheRoleDefaults() throws Exception {
         mockMvc.perform(post("/api/v1/staging/users")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(userJson(uniqueEmail(), "INSPECTOR", null, null)))
+                        .content(userJson(uniqueEmail(), "INSPECTOR", "FCST", null, null)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.permissions", hasItem("STUDENT_CREATE")))
                 .andExpect(jsonPath("$.permissions.length()").value(5));
@@ -152,8 +156,15 @@ class StagingToolsTests {
 
         mockMvc.perform(post("/api/v1/staging/users")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content(userJson(uniqueEmail(), "WIZARD", null, null)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("role: must be one of")));
+
+        mockMvc.perform(post("/api/v1/staging/users")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(userJson(uniqueEmail(), "DEAN", null, null)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("faculty")));
 
         mockMvc.perform(post("/api/v1/staging/users")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -178,12 +189,25 @@ class StagingToolsTests {
         mockMvc.perform(get("/staging"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("Staging tools")));
+                .andExpect(content().string(containsString("Staging tools")))
+                .andExpect(content().string(containsString("<script src=\"/staging/staging.js\"></script>")));
+        // The page's script is a file: the Content-Security-Policy allows no inline script
+        mockMvc.perform(get("/staging/staging.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/v1/staging/roles")));
+        // On staging the API reference lists the staging tools
+        mockMvc.perform(get("/openapi.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/staging/users'].post").exists());
 
         mockMvc.perform(get("/api/v1/staging/roles"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roleDefaults.ADMIN[0]").value("STAFF_CREATE"))
-                .andExpect(jsonPath("$.permissions.length()").value(10));
+                .andExpect(jsonPath("$.roleDefaults.DEAN[0]").value("COURSE_OFFERING_READ"))
+                .andExpect(jsonPath("$.roleDefaults.DEAN[1]").value("STUDENT_PROFILE_READ_FACULTY"))
+                .andExpect(jsonPath("$.roleDefaults.DEAN.length()").value(2))
+                .andExpect(jsonPath("$.permissions.length()").value(11))
+                .andExpect(jsonPath("$.permissions[10]").value("STUDENT_PROFILE_READ_FACULTY"));
     }
 
     @Test
@@ -191,25 +215,25 @@ class StagingToolsTests {
         assertThat(callbackPolicy.acceptsAnyCallback()).isTrue();
     }
 
-    private JsonNode loginToken(String email) throws Exception {
-        String body = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\": \"%s\", \"password\": \"%s\"}".formatted(email, PASSWORD)))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        String token = json.readTree(body).get("accessToken").asString();
-        return json.readTree(new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8));
+    /** Signs in at /login with the user's password and returns the user as the app sees it. */
+    private JsonNode signedInUser(String email) throws Exception {
+        return PortalBrowser.signedIn(mockMvc, email, PASSWORD).get("/api/v1/portal/me").json().get("user");
     }
 
     private static String userJson(String email, String role, String permissions, String student) {
+        return userJson(email, role, null, permissions, student);
+    }
+
+    static String userJson(String email, String role, String faculty, String permissions, String student) {
         return """
-                {"email": "%s", "password": "%s", "firstName": "Test", "lastName": "User", "role": "%s"%s%s}
+                {"email": "%s", "password": "%s", "firstName": "Test", "lastName": "User", "role": "%s"%s%s%s}
                 """.formatted(email, PASSWORD, role,
+                faculty == null ? "" : ", \"faculty\": \"" + faculty + "\"",
                 permissions == null ? "" : ", \"permissions\": " + permissions,
                 student == null ? "" : ", \"student\": " + student);
     }
 
-    private static String uniqueEmail() {
+    static String uniqueEmail() {
         return "staging-" + UUID.randomUUID().toString().substring(0, 8) + "@test.tu-sofia.bg";
     }
 }

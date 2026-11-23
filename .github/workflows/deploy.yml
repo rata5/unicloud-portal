@@ -86,8 +86,34 @@ jobs:
           chmod +x mvnw
           ./mvnw -B verify
 
+  # The React app and @unicloud/ui (web/): the API types match the pinned contract
+  # (openspec/changes/react-hypermedia-ui/portal-api.openapi.json), then types, tests and the build.
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Types match the contract
+        run: npm run gen:api && git diff --exit-code apps/portal/src/api/schema.d.ts
+      - name: Type check
+        run: npm run typecheck
+      - name: Test (components and app)
+        run: npm test
+      - name: Build (app and package)
+        run: npm run build && npm run pack:ui
+
   build:
-    needs: test
+    needs: [test, web]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -175,9 +201,12 @@ jobs:
           az extension add --name containerapp --upgrade --only-show-errors
           # The app reads app.jwt.private-key / app.jwt.public-key; Spring maps these variables to
           # them and accepts the PEM text directly, so no key file is needed in the image.
+          # LOGGING_STRUCTURED_FORMAT_CONSOLE: one JSON object per log line, for the request log
+          # that docs/slo.md measures (RequestLogFilter)
           ENV_VARS=(DATABASE_URL=secretref:db-url
                     APP_JWT_PRIVATE_KEY=secretref:jwt-private-key
-                    APP_JWT_PUBLIC_KEY=secretref:jwt-public-key)
+                    APP_JWT_PUBLIC_KEY=secretref:jwt-public-key
+                    LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs)
           if az containerapp show -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" > /dev/null 2>&1; then
             # Single sign-on tokens name the portal's public address as their issuer
             # (docs/sso.md). A brand-new app has no address yet; until the next deploy the app

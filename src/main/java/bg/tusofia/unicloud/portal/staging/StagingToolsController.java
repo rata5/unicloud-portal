@@ -1,5 +1,11 @@
 package bg.tusofia.unicloud.portal.staging;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
+import bg.tusofia.unicloud.portal.academic.domain.Faculty;
+import bg.tusofia.unicloud.portal.academic.domain.Specialty;
+import bg.tusofia.unicloud.portal.staging.dto.StagingFacultyResponse;
 import bg.tusofia.unicloud.portal.sso.application.SsoClientRegistrationService;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientRequest;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientResponse;
@@ -38,30 +44,37 @@ import java.util.Map;
  * teams make their own.
  *
  * <ul>
- *   <li>{@code GET /staging}: the web page for everything below</li>
+ *   <li>{@code GET /staging}: the web page for everything below, and its script at
+ *       {@code /staging/staging.js}</li>
  *   <li>{@code GET /api/v1/staging/roles}: roles, their default permissions, every permission</li>
- *   <li>{@code GET /api/v1/staging/users}: every user, with role and permissions</li>
+ *   <li>{@code GET /api/v1/staging/faculties}: faculties and their specialties</li>
+ *   <li>{@code GET /api/v1/staging/users}: every user, with role, faculty and permissions</li>
  *   <li>{@code POST /api/v1/staging/users}: create a user with any role and any permissions</li>
  *   <li>{@code PUT /api/v1/staging/users/{id}/permissions}: replace a user's permissions</li>
  *   <li>{@code POST /api/v1/staging/sso-clients}: register a module for single sign-on</li>
  * </ul>
  */
+@Tag(name = "Staging tools", description = "Staging only, no sign-in: test users and module registration (docs/sso.md)")
 @RestController
 @Profile("staging")
 public class StagingToolsController {
 
     private static final Logger log = LoggerFactory.getLogger(StagingToolsController.class);
     private static final Resource PAGE = new ClassPathResource("staging/index.html");
+    private static final Resource SCRIPT = new ClassPathResource("staging/staging.js");
 
     private final StagingUserService userService;
     private final SsoClientRegistrationService clientRegistrationService;
+    private final AcademicStructure academicStructure;
 
     public StagingToolsController(
             StagingUserService userService,
-            SsoClientRegistrationService clientRegistrationService) {
+            SsoClientRegistrationService clientRegistrationService,
+            AcademicStructure academicStructure) {
 
         this.userService = userService;
         this.clientRegistrationService = clientRegistrationService;
+        this.academicStructure = academicStructure;
         log.warn("Staging tools are ON: anyone can create users and SSO clients at /staging. "
                 + "This must never happen on production.");
     }
@@ -74,6 +87,15 @@ public class StagingToolsController {
                 .body(PAGE);
     }
 
+    @GetMapping("/staging/staging.js")
+    public ResponseEntity<Resource> script() {
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf("text/javascript"))
+                .cacheControl(CacheControl.noStore())
+                .body(SCRIPT);
+    }
+
+    @Operation(summary = "Every permission and each role's defaults")
     @GetMapping("/api/v1/staging/roles")
     public Map<String, Object> roles() {
         Map<String, List<String>> defaults = new LinkedHashMap<>();
@@ -89,11 +111,28 @@ public class StagingToolsController {
         return Map.of("roleDefaults", defaults, "permissions", all);
     }
 
+    @Operation(summary = "Faculties and their specialties")
+    @GetMapping("/api/v1/staging/faculties")
+    public List<StagingFacultyResponse> faculties() {
+        List<Specialty> specialties = academicStructure.specialties();
+        List<StagingFacultyResponse> result = new ArrayList<>();
+        for (Faculty faculty : academicStructure.faculties()) {
+            List<StagingFacultyResponse.SpecialtyItem> own = specialties.stream()
+                    .filter(specialty -> specialty.facultyCode().equals(faculty.code()))
+                    .map(specialty -> new StagingFacultyResponse.SpecialtyItem(specialty.id(), specialty.name()))
+                    .toList();
+            result.add(new StagingFacultyResponse(faculty.code(), faculty.name(), own));
+        }
+        return result;
+    }
+
+    @Operation(summary = "Every user (never passwords)")
     @GetMapping("/api/v1/staging/users")
     public List<StagingUserResponse> users() {
         return userService.list();
     }
 
+    @Operation(summary = "Create a test user")
     @PostMapping("/api/v1/staging/users")
     @ResponseStatus(HttpStatus.CREATED)
     public StagingUserResponse createUser(@Valid @RequestBody CreateStagingUserRequest request) {
@@ -102,6 +141,7 @@ public class StagingToolsController {
         return user;
     }
 
+    @Operation(summary = "Replace a user's permissions")
     @PutMapping("/api/v1/staging/users/{id}/permissions")
     public StagingUserResponse setPermissions(
             @PathVariable long id, @Valid @RequestBody SetPermissionsRequest request) {
@@ -111,6 +151,7 @@ public class StagingToolsController {
         return user;
     }
 
+    @Operation(summary = "Register a module; the secret is in this answer only")
     @PostMapping("/api/v1/staging/sso-clients")
     @ResponseStatus(HttpStatus.CREATED)
     public RegisterSsoClientResponse registerClient(@Valid @RequestBody RegisterSsoClientRequest request) {

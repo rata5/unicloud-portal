@@ -13,6 +13,7 @@ public final class StudentPersistenceMapper {
         return new StudentJPAEntity(
                 student.getUserId(),
                 student.getFacultyNumber(),
+                student.getSpecialtyId(),
                 student.getSpecialty(),
                 student.getStudyYear(),
                 student.getStatus()
@@ -23,6 +24,7 @@ public final class StudentPersistenceMapper {
         return Student.reconstitute(
                 entity.getUserId(),
                 entity.getFacultyNumber(),
+                entity.getSpecialtyId(),
                 entity.getSpecialty(),
                 entity.getStudyYear(),
                 entity.getStatus()

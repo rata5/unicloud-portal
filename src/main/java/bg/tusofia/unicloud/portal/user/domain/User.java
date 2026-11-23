@@ -12,7 +12,11 @@ public class User {
     private String lastName;
     private Role role;
     private Long permissionsMask;
+    // The faculty a teacher, dean or inspector belongs to; null for admins and students
+    private String facultyCode;
     boolean enabled;
+    // Created by someone else: the first sign-in must choose a new password (V6)
+    private boolean mustChangePassword;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -25,6 +29,7 @@ public class User {
             String lastName,
             String role,
             Long permissionsMask,
+            String facultyCode,
             boolean enabled,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
@@ -40,6 +45,9 @@ public class User {
         this.permissionsMask = permissionsMask != null
                 ? permissionsMask
                 : this.role.getDefaultPermissions();
+        this.facultyCode = facultyCode == null || facultyCode.isBlank()
+                ? null
+                : facultyCode.strip().toUpperCase(Locale.ROOT);
         this.enabled = enabled;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -47,21 +55,36 @@ public class User {
 
 
 
+    /**
+     * A new user with the role's default permissions. Teachers, deans and inspectors need a
+     * faculty; admins and students must not have one (a student's faculty comes from the
+     * specialty). Whether the faculty exists is the caller's check.
+     */
     public static User createNew(String email, String passwordHash, String firstName, String lastName,
-                                 String role) {
+                                 String role, String facultyCode) {
 
-        return new User(null,
+        User user = new User(null,
                 email,
                 passwordHash,
                 firstName,
                 lastName,
                 role,
                 null,
+                facultyCode,
                 true,
                 null,
                 null);
+        if (user.role.belongsToAFaculty() && user.facultyCode == null) {
+            throw new IllegalArgumentException("faculty: a " + user.role + " belongs to a faculty, give its code");
+        }
+        if (!user.role.belongsToAFaculty() && user.facultyCode != null) {
+            throw new IllegalArgumentException(
+                    "faculty: only a TEACHER, DEAN or INSPECTOR belongs to a faculty directly");
+        }
+        return user;
     }
 
+    /** A stored user without a faculty (admins, students, and tests that do not need one). */
     public static User reconstitute(
             Long id,
             String email,
@@ -74,11 +97,51 @@ public class User {
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
 
+        return reconstitute(id, email, passwordHash, firstName, lastName, role, permissionsMask,
+                null, enabled, createdAt, updatedAt);
+    }
+
+    /** A stored user that may sign in without a password change. */
+    public static User reconstitute(
+            Long id,
+            String email,
+            String passwordHash,
+            String firstName,
+            String lastName,
+            String role,
+            Long permissionsMask,
+            String facultyCode,
+            boolean enabled,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
+
+        return reconstitute(id, email, passwordHash, firstName, lastName, role, permissionsMask,
+                facultyCode, enabled, false, createdAt, updatedAt);
+    }
+
+    /**
+     * A stored user, as saved. No faculty rule is checked here: rows written before V5, or by an
+     * older replica during a deploy, may lack the faculty, and must still load.
+     */
+    public static User reconstitute(
+            Long id,
+            String email,
+            String passwordHash,
+            String firstName,
+            String lastName,
+            String role,
+            Long permissionsMask,
+            String facultyCode,
+            boolean enabled,
+            boolean mustChangePassword,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
+
         Objects.requireNonNull(id, "Existing user must have an ID");
         Objects.requireNonNull(createdAt, "Creation timestamp is required");
         Objects.requireNonNull(updatedAt, "Update timestamp is required");
 
-        return new User(
+        User user = new User(
                 id,
                 email,
                 passwordHash,
@@ -86,10 +149,33 @@ public class User {
                 lastName,
                 role,
                 permissionsMask,
+                facultyCode,
                 enabled,
                 createdAt,
                 updatedAt
         );
+        user.mustChangePassword = mustChangePassword;
+        return user;
+    }
+
+    /** The user must choose a new password at the next sign-in (a user someone else created). */
+    public void requirePasswordChange() {
+        this.mustChangePassword = true;
+    }
+
+    /** The user chose a new password: store its hash and drop the forced change. */
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = requireNonBlank(newPasswordHash, "Password hash");
+        this.mustChangePassword = false;
+    }
+
+    /** The same password, hashed again with the current algorithm (BCrypt to Argon2id at sign-in). */
+    public void rehashPassword(String newPasswordHash) {
+        this.passwordHash = requireNonBlank(newPasswordHash, "Password hash");
+    }
+
+    public boolean mustChangePassword() {
+        return mustChangePassword;
     }
 
     public void enable() {
@@ -150,6 +236,11 @@ public class User {
 
     public long getPermissionsMask() {
         return permissionsMask;
+    }
+
+    /** The faculty code of a teacher, dean or inspector, or null. */
+    public String getFacultyCode() {
+        return facultyCode;
     }
 
     public boolean isEnabled() {

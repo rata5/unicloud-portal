@@ -1,6 +1,7 @@
 
 package bg.tusofia.unicloud.portal.user.infrastructure.persistence;
 
+import bg.tusofia.unicloud.portal.user.domain.Role;
 import bg.tusofia.unicloud.portal.user.domain.User;
 import bg.tusofia.unicloud.portal.user.domain.UserRepository;
 import bg.tusofia.unicloud.portal.user.infrastructure.persistence.SpringDataUserJpaRepository;
@@ -55,5 +56,10 @@ public class UserRepositoryAdapter implements UserRepository {
         }
 
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean existsDeanOfFaculty(String facultyCode) {
+        return jpaRepository.existsByRoleAndFacultyCode(Role.DEAN.name(), facultyCode);
     }
 }

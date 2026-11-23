@@ -1,5 +1,24 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.ModuleLogins;
+import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import bg.tusofia.unicloud.portal.accounts.web.PortalUserFilter;
+import bg.tusofia.unicloud.portal.user.domain.UserRepository;
+import bg.tusofia.unicloud.portal.config.SecurityHeaders;
+import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
+import bg.tusofia.unicloud.portal.sso.infrastructure.DirectoryTokenRequestConverter;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import jakarta.servlet.Filter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import bg.tusofia.unicloud.portal.sso.application.SsoCallbackPolicy;
 import bg.tusofia.unicloud.portal.sso.application.SsoUserClaims;
 import bg.tusofia.unicloud.portal.sso.infrastructure.SsoCallbackValidators;
@@ -17,7 +36,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -53,18 +71,17 @@ import java.util.Map;
  * server on the portal (docs/sso.md). It serves /oauth2/authorize, /oauth2/token, /oauth2/jwks,
  * /.well-known/openid-configuration, /userinfo and /connect/logout.
  *
- * <p>Its filter chain runs before the API chain in SecurityConfig and matches only those
- * endpoints. It is the one place in the portal that uses a browser session (cookie UNICLOUD_SSO,
- * stored in MySQL by Spring Session): /oauth2/authorize is a browser redirect and cannot carry
- * a Bearer token. The login page turns a Bearer login into that session through
- * {@code POST /api/v1/auth/sso-session} (SsoSessionController).
+ * <p>Its filter chain (order 1) matches only those endpoints. It reads the browser's session, the
+ * one the portal UI signs in with (cookie __Host-UNICLOUD_SSO, stored in the database by Spring
+ * Session; ADR 0003). A browser without one is sent to /login?sso=1, and the sign-in page
+ * continues the waiting /oauth2/authorize.
  */
 @Configuration
 @EnableScheduling
 public class SsoAuthorizationServerConfig {
 
-    /** Where /oauth2/authorize sends a browser that has no SSO session yet. */
-    public static final String LOGIN_PAGE = "/login.html?sso=1";
+    /** Where /oauth2/authorize sends a browser that has no SSO session yet (SignInController). */
+    public static final String LOGIN_PAGE = "/login?sso=1";
 
     /**
      * The SSO session cookie. The __Host- prefix makes the browser refuse it unless it is Secure,
@@ -76,6 +93,18 @@ public class SsoAuthorizationServerConfig {
     /** The only SSO endpoint that takes a Bearer token: a module's access token. */
     private static final String USERINFO_PATH = "/userinfo";
 
+    /**
+     * What the discovery documents list (sso-provider spec): only what the portal serves and
+     * docs/sso.md describes. The library's defaults also advertise revocation, introspection,
+     * other grant types and client authentication methods, and DPoP.
+     */
+    private static final Set<String> DISCOVERY_FIELDS = Set.of(
+            "issuer", "authorization_endpoint", "token_endpoint", "jwks_uri", "userinfo_endpoint",
+            "end_session_endpoint", "response_types_supported", "grant_types_supported",
+            "code_challenge_methods_supported", "subject_types_supported",
+            "id_token_signing_alg_values_supported", "token_endpoint_auth_methods_supported",
+            "scopes_supported");
+
     private static final Logger log = LoggerFactory.getLogger(SsoAuthorizationServerConfig.class);
 
     @Bean
@@ -85,6 +114,9 @@ public class SsoAuthorizationServerConfig {
             JWKSource<SecurityContext> jwkSource,
             SsoUserClaims userClaims,
             SsoCallbackPolicy callbackPolicy,
+            AuthorizationServerSettings settings,
+            UserRepository users,
+            ModuleLogins moduleLogins,
             @Value("${app.sso.session-max-age}") Duration sessionMaxAge) throws Exception {
 
         http
@@ -98,18 +130,34 @@ public class SsoAuthorizationServerConfig {
                                             SsoCallbackValidators.authorization(callbackPolicy));
                                 }
                             })));
+                    // client_credentials: for the directory API only (DirectoryTokenRequestConverter)
+                    server.tokenEndpoint(token -> token.accessTokenRequestConverters(converters ->
+                            converters.add(0, new DirectoryTokenRequestConverter())));
+                    server.authorizationServerMetadataEndpoint(metadata -> metadata
+                            .authorizationServerMetadataCustomizer(document -> document
+                                    .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)));
                     server.oidc(oidc -> oidc
+                            .providerConfigurationEndpoint(discovery -> discovery
+                                    .providerConfigurationCustomizer(document -> document
+                                            .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)))
                             .userInfoEndpoint(userInfo -> userInfo
                                     .userInfoMapper(context -> userInfo(context, userClaims)))
-                            .logoutEndpoint(logout -> logout.authenticationProviders(providers ->
-                                    providers.forEach(provider -> {
-                                        if (provider instanceof OidcLogoutAuthenticationProvider oidcLogout) {
-                                            oidcLogout.setAuthenticationValidator(
-                                                    SsoCallbackValidators.logout(callbackPolicy));
-                                        }
-                                    }))));
+                            .logoutEndpoint(logout -> logout
+                                    .authenticationProviders(providers ->
+                                            providers.forEach(provider -> {
+                                                if (provider instanceof OidcLogoutAuthenticationProvider oidcLogout) {
+                                                    oidcLogout.setAuthenticationValidator(
+                                                            SsoCallbackValidators.logout(callbackPolicy));
+                                                }
+                                            }))
+                                    // A module's logout also ends the module logins made in this browser
+                                    .logoutResponseHandler(endModuleLoginsThen(new OidcLogoutAuthenticationSuccessHandler(), moduleLogins))
+                                    // Without a valid id_token_hint nobody proves the logout was asked for:
+                                    // a signed-in user confirms it on /logout instead (sso-provider spec)
+                                    .errorResponseHandler(confirmWithoutAHint())));
                 })
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .headers(SecurityHeaders.everywhere())
                 // A browser without a session goes to the login page; the request it came with is
                 // kept in the session, and the login page resumes it afterwards.
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
@@ -119,12 +167,73 @@ public class SsoAuthorizationServerConfig {
                 // token up in its own store, so a portal API token is refused there.
                 .oauth2ResourceServer(resource -> resource
                         .bearerTokenResolver(userInfoOnly())
-                        .jwt(jwt -> jwt.decoder(OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource))))
+                        .jwt(jwt -> jwt.decoder(AccessTokenDecoders.forUserInfo(jwkSource))))
                 .addFilterAfter(
                         new SsoSessionMaxAgeFilter(sessionMaxAge, Clock.systemUTC()),
-                        SecurityContextHolderFilter.class);
+                        SecurityContextHolderFilter.class)
+                // The signed-in user read again: a disabled user gets no new login, and a first
+                // password must be changed before a module gets a code
+                .addFilterAfter(new PortalUserFilter(users), SsoSessionMaxAgeFilter.class)
+                .addFilterBefore(notServed(settings), SecurityContextHolderFilter.class);
 
         return http.build();
+    }
+
+    private static AuthenticationSuccessHandler endModuleLoginsThen(AuthenticationSuccessHandler logout,
+                                                                    ModuleLogins moduleLogins) {
+        return (request, response, authentication) -> {
+            moduleLogins.revokeThoseOf(request.getSession(false));
+            logout.onAuthenticationSuccess(request, response, authentication);
+        };
+    }
+
+    /** A logout request that names no valid ID token: the confirmation page for a signed-in browser. */
+    private static AuthenticationFailureHandler confirmWithoutAHint() {
+        return (request, response, exception) -> {
+            boolean aboutTheHint = exception instanceof OAuth2AuthenticationException oauth
+                    && (String.valueOf(oauth.getError().getDescription()).contains("id_token_hint")
+                        || OAuth2ErrorCodes.INVALID_TOKEN.equals(oauth.getError().getErrorCode()));
+            if (aboutTheHint && request.getSession(false) != null) {
+                response.sendRedirect("/logout");
+                return;
+            }
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+        };
+    }
+
+    private static void onlyWhatIsServed(Map<String, Object> document) {
+        document.keySet().retainAll(DISCOVERY_FIELDS);
+        document.put("response_types_supported", List.of("code"));
+        document.put("grant_types_supported", List.of("authorization_code", "client_credentials"));
+        document.put("code_challenge_methods_supported", List.of("S256"));
+        document.put("token_endpoint_auth_methods_supported", List.of("client_secret_basic"));
+        document.put("scopes_supported", List.of("openid", "profile", "email", SsoUserClaims.UNICLOUD_SCOPE,
+                AccessTokenDecoders.DIRECTORY_SCOPE));
+    }
+
+    /**
+     * The library's endpoints the portal does not offer (revocation, introspection, device flow,
+     * pushed authorization requests, dynamic client registration) answer 404, before the library
+     * sees the request. Discovery does not list them either.
+     */
+    private static Filter notServed(AuthorizationServerSettings settings) {
+        Set<String> paths = Stream.of(
+                        settings.getTokenRevocationEndpoint(),
+                        settings.getTokenIntrospectionEndpoint(),
+                        settings.getDeviceAuthorizationEndpoint(),
+                        settings.getDeviceVerificationEndpoint(),
+                        settings.getPushedAuthorizationRequestEndpoint(),
+                        settings.getClientRegistrationEndpoint(),
+                        settings.getOidcClientRegistrationEndpoint())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+        return (request, response, chain) -> {
+            if (paths.contains(((HttpServletRequest) request).getRequestURI())) {
+                ((HttpServletResponse) response).sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+            chain.doFilter(request, response);
+        };
     }
 
     /**
@@ -160,9 +269,10 @@ public class SsoAuthorizationServerConfig {
     @Bean
     OAuth2AuthorizationService authorizationService(
             JdbcOperations jdbcOperations,
-            RegisteredClientRepository registeredClientRepository) {
+            RegisteredClientRepository registeredClientRepository,
+            ModuleLogins moduleLogins) {
 
-        return new SingleUseCodeAuthorizationService(jdbcOperations, registeredClientRepository);
+        return new SingleUseCodeAuthorizationService(jdbcOperations, registeredClientRepository, moduleLogins);
     }
 
     @Bean
@@ -188,10 +298,25 @@ public class SsoAuthorizationServerConfig {
         return settings.build();
     }
 
-    /** Puts the user's claims into every ID token. A user deleted or disabled since login gets none. */
+    /**
+     * Access tokens: header {@code typ: at+jwt} (RFC 9068), so a module can tell them from ID
+     * tokens, which keep no {@code typ}; and a {@code client_id} claim (sso-provider spec).
+     *
+     * <p>ID tokens: the user's claims. A user deleted or disabled since login gets none.
+     */
     @Bean
-    OAuth2TokenCustomizer<JwtEncodingContext> idTokenClaims(SsoUserClaims userClaims) {
+    OAuth2TokenCustomizer<JwtEncodingContext> tokenClaims(SsoUserClaims userClaims) {
         return context -> {
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                context.getJwsHeader().type("at+jwt");
+                context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
+                if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+                    // A module's own token for the directory API: sub is the client id. A plain
+                    // ArrayList: the library stores token claims as JSON and reads back only those.
+                    context.getClaims().audience(new java.util.ArrayList<>(List.of(AccessTokenDecoders.DIRECTORY_AUDIENCE)));
+                }
+                return;
+            }
             if (!OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
                 return;
             }

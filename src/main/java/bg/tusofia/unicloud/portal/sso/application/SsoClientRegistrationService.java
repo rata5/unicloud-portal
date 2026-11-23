@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.sso.application;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
 import bg.tusofia.unicloud.portal.exception.DuplicateResourceException;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientRequest;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientResponse;
@@ -42,7 +43,6 @@ public class SsoClientRegistrationService {
     private final SsoCallbackPolicy callbackPolicy;
     private final Duration codeTimeToLive;
     private final Duration tokenTimeToLive;
-    private final String apiAudience;
     private final SecureRandom random = new SecureRandom();
 
     public SsoClientRegistrationService(
@@ -50,15 +50,13 @@ public class SsoClientRegistrationService {
             PasswordEncoder passwordEncoder,
             SsoCallbackPolicy callbackPolicy,
             @Value("${app.sso.code-ttl-seconds}") long codeTtlSeconds,
-            @Value("${app.jwt.ttl-minutes}") long tokenTtlMinutes,
-            @Value("${app.jwt.audience}") String apiAudience) {
+            @Value("${app.sso.token-ttl-minutes}") long tokenTtlMinutes) {
 
         this.clientRepository = clientRepository;
         this.passwordEncoder = passwordEncoder;
         this.callbackPolicy = callbackPolicy;
         this.codeTimeToLive = Duration.ofSeconds(codeTtlSeconds);
         this.tokenTimeToLive = Duration.ofMinutes(tokenTtlMinutes);
-        this.apiAudience = apiAudience;
     }
 
     /**
@@ -68,9 +66,9 @@ public class SsoClientRegistrationService {
     public RegisterSsoClientResponse register(RegisterSsoClientRequest request, String registeredBy) {
         String secret = newSecret();
 
-        // A module's tokens carry its client id as "aud". The portal API's own audience must
-        // never be one, or the API's audience check would accept that module's tokens.
-        if (request.clientId().equalsIgnoreCase(apiAudience)) {
+        // A module's tokens carry its client id as "aud". The portal's own audiences
+        // (unicloud-directory, and unicloud-api from before) must never be one.
+        if (isReserved(request.clientId())) {
             throw new IllegalArgumentException("clientId: '" + request.clientId() + "' is reserved");
         }
         if (clientRepository.findByClientId(request.clientId()) != null) {
@@ -82,7 +80,8 @@ public class SsoClientRegistrationService {
                 request.postLogoutRedirectUris() == null ? List.of() : request.postLogoutRedirectUris(),
                 "postLogoutRedirectUris");
 
-        RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
+        boolean directory = Boolean.TRUE.equals(request.directory());
+        RegisteredClient.Builder builder = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId(request.clientId())
                 .clientName(request.name().strip())
                 .clientSecret(passwordEncoder.encode(secret))
@@ -101,12 +100,17 @@ public class SsoClientRegistrationService {
                 .tokenSettings(TokenSettings.builder()
                         .authorizationCodeTimeToLive(codeTimeToLive)
                         .accessTokenTimeToLive(tokenTimeToLive)
-                        .build())
-                .build();
+                        .build());
+        if (directory) {
+            // The module's own token for the directory API (docs/sso.md, "The directory API")
+            builder.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                    .scope(AccessTokenDecoders.DIRECTORY_SCOPE);
+        }
+        RegisteredClient client = builder.build();
 
         clientRepository.save(client);
-        log.info("SSO client '{}' registered by user {} with redirect URIs {}",
-                client.getClientId(), registeredBy, redirectUris);
+        log.info("SSO client '{}' registered by user {} with redirect URIs {}{}",
+                client.getClientId(), registeredBy, redirectUris, directory ? " and the directory grant" : "");
         return new RegisterSsoClientResponse(client.getClientId(), secret, redirectUris, logoutUris);
     }
 
@@ -124,5 +128,16 @@ public class SsoClientRegistrationService {
         byte[] bytes = new byte[SECRET_BYTES];
         random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /**
+     * Ids the portal keeps for itself: every {@code unicloud-*} id (the portal's own audiences,
+     * such as {@code unicloud-directory}), and ids made only of digits, which could be mistaken for a
+     * user's {@code sub}.
+     */
+    private boolean isReserved(String clientId) {
+        String id = clientId.strip();
+        return id.toLowerCase(java.util.Locale.ROOT).startsWith("unicloud-")
+                || (!id.isEmpty() && id.chars().allMatch(Character::isDigit));
     }
 }

@@ -1,5 +1,8 @@
 package bg.tusofia.unicloud.portal.exception;
 
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -11,7 +14,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import bg.tusofia.unicloud.portal.dto.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
@@ -43,23 +45,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
-    @ExceptionHandler(EnrollmentException.class)
-    public ResponseEntity<ApiError> handleEnrollmentException(EnrollmentException ex, HttpServletRequest request) {
-        log.warn("Enrollment error [{}]: {}", ex.getErrorCode(), ex.getMessage());
-        HttpStatus status = switch (ex.getErrorCode()) {
-            case COURSE_CLOSED, COURSE_FULL, STUDENT_NOT_ACTIVE -> HttpStatus.BAD_REQUEST;
-            case ALREADY_ENROLLED, ALREADY_CANCELLED -> HttpStatus.CONFLICT;
-            case ENROLLMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
-        };
-        ApiError error = ApiError.of(
-                status.value(),
-                status.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()
-        );
-        return ResponseEntity.status(status).body(error);
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ApiError.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
@@ -77,8 +62,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * A failed {@code @PreAuthorize} check (or a service refusing an action) surfaces here, before
-     * Spring Security's own handler gets a chance; without this method the catch-all below would
+     * A service refusing an action surfaces here; without this method the catch-all below would
      * turn it into a 500.
      */
     @ExceptionHandler(AccessDeniedException.class)
@@ -100,6 +84,44 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(),
                 "Bad Request",
                 ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /** A route that exists, with another method: for example a POST to the read-only directory. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
+                                                             HttpServletRequest request) {
+        ApiError error = ApiError.of(
+                HttpStatus.METHOD_NOT_ALLOWED.value(),
+                "Method Not Allowed",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(error);
+    }
+
+    /** No route or file at that path. Without this, the catch-all below answered 500. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
+        ApiError error = ApiError.of(
+                HttpStatus.NOT_FOUND.value(),
+                "Not Found",
+                "No such resource",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /** A path or query value of the wrong type, for example a letter where an id goes. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+                                                       HttpServletRequest request) {
+        ApiError error = ApiError.of(
+                HttpStatus.BAD_REQUEST.value(),
+                "Bad Request",
+                ex.getName() + ": not a valid value",
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);

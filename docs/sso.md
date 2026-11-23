@@ -4,7 +4,7 @@ The other UniCloud modules log users in through the portal. A user signs in once
 
 The portal is a standard **OpenID Connect** provider. It uses the **OAuth 2.0 authorization code flow with PKCE**. Every module can use an existing OIDC client library in its own language. Nothing here is specific to UniCloud except the user claims.
 
-**Module teams:** sections 1 to 10 are for you. Start with [Testing a module against staging](#testing-a-module-against-staging) to log in from your own machine today. Sections 11 to 13 are for the portal team.
+**Module teams:** sections 1 to 11 are for you. Start with [Testing a module against staging](#testing-a-module-against-staging) to log in from your own machine today. Sections 12 to 14 are for the portal team.
 
 ## Contents
 
@@ -15,12 +15,13 @@ The portal is a standard **OpenID Connect** provider. It uses the **OAuth 2.0 au
 5. [What a module must build](#what-a-module-must-build)
 6. [User claims](#user-claims)
 7. [Logout](#logout)
-8. [Testing a module against staging](#testing-a-module-against-staging)
-9. [Going to production](#going-to-production)
-10. [Troubleshooting](#troubleshooting)
-11. [Registering a module (portal admins)](#registering-a-module-portal-admins)
-12. [How the portal does it](#how-the-portal-does-it)
-13. [Not done yet](#not-done-yet)
+8. [The directory API](#the-directory-api)
+9. [Testing a module against staging](#testing-a-module-against-staging)
+10. [Going to production](#going-to-production)
+11. [Troubleshooting](#troubleshooting)
+12. [Registering a module (portal admins)](#registering-a-module-portal-admins)
+13. [How the portal does it](#how-the-portal-does-it)
+14. [Not done yet](#not-done-yet)
 
 ## The rules in short
 
@@ -82,6 +83,8 @@ If the user already has a portal SSO session, step 4 is skipped: the portal send
 | `GET /oauth2/jwks` | The public keys that sign the tokens, each with a `kid`. |
 | `GET /userinfo` | The user's claims, for a module's access token. |
 | `GET /connect/logout` | Ends the portal's SSO session. See [Logout](#logout). |
+| `GET /api/v1/directory/...` | Read who is who, with no user present. See [The directory API](#the-directory-api). |
+| `GET /api-docs` | Interactive API reference (Swagger UI) for every endpoint a module's backend calls. The machine-readable file is `GET /openapi.json` (OpenAPI 3.1). |
 
 ## What a module must build
 
@@ -180,6 +183,7 @@ Check all of these. Most OIDC libraries do it for you:
 - The RS256 signature checks out against the keys at `/oauth2/jwks`. Cache the keys. Fetch them again when a token has a `kid` you do not know.
 - `iss` is the portal's address, exactly as in the discovery document.
 - `aud` contains the module's own `client_id`.
+- It is an ID token, not an access token: access tokens carry the header `typ: at+jwt`, ID tokens have no `typ`. Never accept one in place of the other.
 - `exp` has not passed. Allow a small clock skew, for example 60 seconds.
 - `nonce` matches the value stored in the session.
 
@@ -190,11 +194,12 @@ Check all of these. Most OIDC libraries do it for you:
 - Exchange the code from the backend only, over HTTPS.
 - Never pass portal tokens to browser JavaScript. Never put them in URLs or logs.
 - Use your own session for your own app. Use the `role` and `permissions` claims as input to your own authorization checks, not as a replacement for them.
-- A module's tokens work only for that module and for `/userinfo`. The portal's own API (`/api/v1/...`) refuses them.
+- Treat a role or permission you do not know as no access (see [User claims](#user-claims)).
+- A token from a user login works only for that module and for `/userinfo`. A client-credentials token works only for the directory API. The portal's own API (`/api/v1/portal/...`) refuses both: it answers only to a signed-in browser.
 
 ## User claims
 
-Every module may ask for everything the portal knows about the user. Each group of claims comes only with its scope, so a module gets just what it asked for. The list will shrink once each team says what it needs.
+Every module may ask for the four user scopes. Each group of claims comes only with its scope, so a module gets just what it asked for. The list will shrink once each team says what it needs. The `directory` scope is different: it is granted per module (see [The directory API](#the-directory-api)).
 
 The claims are in the `id_token`, and `/userinfo` returns the same ones for the module's access token. They are read from the database at the moment the token is issued.
 
@@ -206,9 +211,14 @@ The claims are in the `id_token`, and `/userinfo` returns the same ones for the 
 | `given_name` | `profile` | `"Александър"` | |
 | `family_name` | `profile` | `"Стоянов"` | |
 | `name` | `profile` | `"Александър Стоянов"` | |
-| `role` | `unicloud` | `"STUDENT"` | One of `STUDENT`, `TEACHER`, `INSPECTOR`, `ADMIN` |
-| `permissions` | `unicloud` | `["STUDENT_PROFILE_READ_OWN", "COURSE_OFFERING_READ", "ENROLLMENT_REQUEST_CREATE"]` | The portal's permission names |
+| `role` | `unicloud` | `"STUDENT"` | Today one of `STUDENT`, `TEACHER`, `DEAN`, `INSPECTOR`, `ADMIN`. More may come |
+| `permissions` | `unicloud` | `["STUDENT_PROFILE_READ_OWN", "COURSE_OFFERING_READ", "ENROLLMENT_REQUEST_CREATE"]` | The portal's permission names, in a fixed order. More may come |
+| `faculty` | `unicloud` | `{"code": "FCST", "name": "Факултет по компютърни системи и технологии"}` | For students (through their specialty), teachers, deans and inspectors. Admins have none |
 | `student` | `unicloud` | `{"faculty_number": "121219001", "specialty": "Компютърни науки", "study_year": 2, "status": "ACTIVE"}` | Only for students. `status` is `ACTIVE`, `INTERRUPTED` or `GRADUATED` |
+
+**Unknown values mean no access.** The portal adds roles, permissions and claims over time. It never renames or removes one. Your code must accept a `role` or a permission it does not know, and grant nothing for it. Do not fail the login, and do not map it to a default role.
+
+**Who is who.** A teacher is `TEACHER`; the portal has no separate "professor". A dean (`DEAN`) leads one faculty and by default holds `STUDENT_PROFILE_READ_FACULTY` (the students of that faculty) and `COURSE_OFFERING_READ`. A faculty has at most one dean. The shared identifier of a course across UniCloud is its **course code**, for example `MATH1`.
 
 The ID token travels again in the logout URL (`id_token_hint`), where proxies may log it. That is one more reason to ask only for the scopes you use.
 
@@ -228,11 +238,44 @@ GET <portal>/connect/logout
     &state=<optional>
 ```
 
-The portal ends its SSO session and redirects to `post_logout_redirect_uri?state=...`. The logout URL must be registered, like the callback. The portal keeps what it needs for this for 24 hours after the login.
+The portal ends its SSO session and redirects to `post_logout_redirect_uri?state=...`. The logout URL must be registered, like the callback. The portal keeps what it needs for this for 24 hours after the login. Without a valid `id_token_hint`, the portal does not end anything by itself: it asks the signed-in user to confirm on its own page.
 
-Logging out of the portal itself (the "Изход" button) also ends the SSO session. Losing the portal token in one tab (it expired, or the tab is new) does not: the token lives per tab, the SSO session per browser.
+Logging out of the portal itself (the "Изход" button) also ends the SSO session: the portal and single sign-on share one session per browser.
+
+Both kinds of logout also end the module logins made in that browser: their access tokens stop working at `/userinfo`. So does a password change, for every login of that user.
 
 Not done: single logout, where logging out of one module also ends the user's session in every other module.
+
+## The directory API
+
+Some data is needed with no user present: every student in a course, every course of a faculty. For that a module calls the directory API from its backend. It is read-only.
+
+**Get a token.** The module must hold the `directory` grant (tick it when you register on staging; ask the portal team in production). Then:
+
+```
+POST <portal>/oauth2/token
+Authorization: Basic base64(<client_id>:<client_secret>)
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&scope=directory
+```
+
+The answer is `{"access_token", "scope": "directory", "token_type": "Bearer", "expires_in": 1799}`: no ID token and no refresh token. Cache it until it expires. Leaving out `scope` gives the same. A module without the grant, or any other scope, gets 400 `invalid_scope`. The token's `sub` is your client id and its `aud` is `unicloud-directory`.
+
+**Call it** with `Authorization: Bearer <token>`. Without a valid directory token every route answers 401. Every route is `GET`; anything else answers 405.
+
+| Request | Answer |
+|---|---|
+| `GET /api/v1/directory/users/{sub}` | `{sub, role, given_name, family_name, name, email, faculty, student}`, the same shapes as the claims; `faculty` and `student` left out when the user has none. 404 for an unknown or disabled user |
+| `GET /api/v1/directory/users/{sub}/enrollments` | The student's courses: `[{id, code, title, semester}]`. 404 if the user is not a student |
+| `GET /api/v1/directory/users/{sub}/offerings` | The courses a teacher teaches: `[{id, code, title, semester}]`. 404 if the user is not a teacher |
+| `GET /api/v1/directory/offerings/{id}/students` | The students enrolled in a course: `[{sub, name, faculty_number}]`. 404 for an unknown offering |
+| `GET /api/v1/directory/faculties/{code}/offerings?semester=2026-27-W` | A faculty's courses: `[{id, code, title, semester, teacher_sub}]`. `semester` is optional |
+| `GET /api/v1/directory/faculties/{code}/students` | A faculty's students: `[{sub, name, faculty_number, specialty, study_year, status}]` |
+
+`code` is the course code, the identifier to share with other modules. `id` names one course in one semester. The two faculty lists return at most 200 items. When there are more, the answer has a `Link: <...?page=2>; rel="next"` header. An unknown faculty code answers 404. Lists leave out disabled users.
+
+Grades and materials are not here: they belong to Team 3 and Team 2.
 
 ## Testing a module against staging
 
@@ -244,8 +287,8 @@ A module team tests its own changes on its own machine against the portal's **st
 **Step by step:**
 
 1. Open `<staging>/staging`.
-2. Under **Register your module for single sign-on**, pick a client id (for example `module-x`) and register. Copy the secret: it is shown once. Register again under a new id if it is lost.
-3. Under **Create a test user**, pick a role. Its default permissions are ticked. Tick or untick any permission, and add a student record if the module needs one. Choose the password yourself.
+2. Under **Register your module for single sign-on**, pick a client id (for example `module-x`) and register. Tick the directory box if your backend needs [the directory API](#the-directory-api). Copy the secret: it is shown once. Register again under a new id if it is lost.
+3. Under **Create a test user**, pick a role, and a faculty for a teacher, dean or inspector. Its default permissions are ticked. Tick or untick any permission, and add a student record if the module needs one: the specialty decides the student's faculty. Choose the password yourself.
 4. Point the module's OIDC library at staging:
 
 | Setting | Value |
@@ -254,7 +297,7 @@ A module team tests its own changes on its own machine against the portal's **st
 | Client id and secret | From step 2 |
 | Client authentication | `client_secret_basic` |
 | Callback | Anything, for example `http://localhost:3000/auth/callback` |
-| Scopes | `openid profile email unicloud` |
+| Scopes | `openid profile email unicloud` (and `directory` for client credentials) |
 | PKCE | `S256` (required) |
 
 5. Log in through the module with the user from step 3. To test other permissions, use **Edit permissions** in the users table, then log in again. Tokens are issued with the permissions of that moment.
@@ -266,15 +309,16 @@ Staging's free hosting sleeps after 15 minutes without visitors, so the first re
 | Request | What it does |
 |---|---|
 | `GET /api/v1/staging/roles` | Every permission, and each role's defaults |
-| `GET /api/v1/staging/users` | Every user, with role and permissions (never passwords) |
-| `POST /api/v1/staging/users` | Creates a user. Body: `email`, `password` (8 or more characters), `firstName`, `lastName`, `role`, and optionally `permissions` (a list of names: left out means the role's defaults, `[]` means none) and `student` (`facultyNumber`, `specialty`, `studyYear`, `status`) |
+| `GET /api/v1/staging/faculties` | Every faculty, with its specialties (`id` and `name`) |
+| `GET /api/v1/staging/users` | Every user, with role, faculty and permissions (never passwords) |
+| `POST /api/v1/staging/users` | Creates a user. Body: `email`, `password` (8 to 72 characters), `firstName`, `lastName`, `role`, `faculty` (a faculty code such as `FCST`, required for `TEACHER`, `DEAN` and `INSPECTOR`, left out for the others), and optionally `permissions` (a list of names: left out means the role's defaults, `[]` means none) and `student` (`facultyNumber`, `specialty` as a name such as `Компютърни науки` or an id, `studyYear`, `status`). A second dean for a faculty answers `409` |
 | `PUT /api/v1/staging/users/{id}/permissions` | Replaces the user's permissions. Body: `{"permissions": [...]}` |
-| `POST /api/v1/staging/sso-clients` | Registers a module, like the admin route in the next section. Returns the secret once |
+| `POST /api/v1/staging/sso-clients` | Registers a module, like the admin route in the next section. Body: `clientId`, `name`, `redirectUris`, optionally `postLogoutRedirectUris` and `directory` (true for the directory grant). Returns the secret once |
 
 ```bash
 curl -X POST <staging>/api/v1/staging/users -H 'Content-Type: application/json' -d '{
   "email": "x.teacher@test.tu-sofia.bg", "password": "a-long-password",
-  "firstName": "Test", "lastName": "Teacher", "role": "TEACHER",
+  "firstName": "Test", "lastName": "Teacher", "role": "TEACHER", "faculty": "FCST",
   "permissions": ["COURSE_OFFERING_READ", "STUDENT_PROFILE_READ_ANY"]}'
 ```
 
@@ -287,15 +331,17 @@ curl -X POST <staging>/api/v1/staging/users -H 'Content-Type: application/json' 
 | `STUDENT` | `STUDENT_PROFILE_READ_OWN`, `COURSE_OFFERING_READ`, `ENROLLMENT_REQUEST_CREATE` |
 | `TEACHER` | `COURSE_OFFERING_READ`, `STUDENT_PROFILE_READ_ENROLLED`, `ENROLLMENT_REQUEST_ACCEPT_REJECT` |
 | `INSPECTOR` | `STUDENT_CREATE`, `STUDENT_PROFILE_READ_ANY`, `COURSE_CREATE_MODIFY`, `COURSE_OFFERING_READ`, `COURSE_OFFERING_CREATE_MODIFY` |
+| `DEAN` | `STUDENT_PROFILE_READ_FACULTY`, `COURSE_OFFERING_READ` |
 | `ADMIN` | `STAFF_CREATE` |
 
-On staging any user can have any mix of the ten permissions, whatever the role. A token carries the permissions the user had when it was issued, so log in again after changing them.
+On staging any user can have any mix of the eleven permissions, whatever the role. A token carries the permissions the user had when it was issued, so log in again after changing them.
 
 ## Going to production
 
 Production is strict. Before your module goes live, send the portal team:
 
-- the client id you want (lower-case letters, digits, dashes; `unicloud-api` is reserved),
+- the client id you want (2 to 63 lower-case letters, digits or dashes, not starting with a dash and not only digits; ids starting with `unicloud-` are reserved),
+- whether your backend needs the directory API,
 - every callback URL, written out in full, each `https`,
 - every URL the user should land on after a logout everywhere, if you use it (see [Logout](#logout)),
 - the host names of those URLs, for example `library.tu-sofia.bg`.
@@ -320,27 +366,34 @@ Configure each environment separately: the issuer, client id and secret all diff
 | The token request answers `invalid_client` (401) | Wrong client id or secret, or the secret is not sent with HTTP Basic |
 | The token request answers `invalid_grant` (400) | The code expired (60 seconds) or was used already, or `redirect_uri` or `code_verifier` differs from the login |
 | Your library rejects the ID token on `iss` | The configured issuer is not exactly the portal's address. Copy it from the discovery document |
-| `/userinfo` answers 401 | Send the access token from the code exchange, not the ID token. It expires after 30 minutes |
-| The user lands on the portal's profile page instead of your module | The login took too long and the portal forgot the waiting request. Start the login from your module again |
+| `/userinfo` answers 401 | Send the access token from the code exchange, not the ID token or a client-credentials token. It expires after 30 minutes |
+| The directory API answers 401 | Use a token from `grant_type=client_credentials&scope=directory`, not one from a user login. It expires after 30 minutes |
+| The token request answers `invalid_scope` for `client_credentials` | The module has no directory grant, or asked for a scope other than `directory` |
+| The user lands on the portal's app instead of your module | The login took too long and the portal forgot the waiting request. Start the login from your module again |
+| The user lands on the portal's password page | A user created by an inspector or an admin chooses a new password at the first sign-in. After that, the module's login goes on by itself |
+| The sign-in page says to try again in 15 minutes | 10 failed sign-ins for that email within 15 minutes lock it for 15 minutes |
 | A request to staging takes very long, or times out | Staging runs on Render's free plan, which stops the service after 15 minutes without requests. The next request starts it again, and the portal takes 1 to 3 minutes to boot. Until then requests wait, and some time out. That includes your backend's calls to `/oauth2/token`, `/oauth2/jwks` and the discovery document, not just the browser. Open the staging address in a browser first, wait until it answers, then retry. If your OIDC library gives up during the boot, raise its timeout for staging or retry the request |
 | Staging no longer knows your module (a plain 400 page) or your test users | Staging's free database is replaced every 30 days, and everything in it is lost: modules, secrets and users. Register your module and create your users again on the staging page |
 
 ## Registering a module (portal admins)
 
-A portal admin registers each module once:
+A portal admin registers each module once, on the portal page **Модули** (`/app/admin/modules`). The page sends, with the admin's session and its CSRF token:
 
 ```
-POST <portal>/api/v1/sso/clients
-Authorization: Bearer <an admin's portal token>
+POST <portal>/api/v1/portal/admin/modules
+X-CSRF-Token: <the session's token>
 Content-Type: application/json
 
 {
   "clientId": "library",
   "name": "University library",
   "redirectUris": ["https://library.tu-sofia.bg/auth/callback"],
-  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"]
+  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"],
+  "directory": false
 }
 ```
+
+`directory` is optional: `true` gives the module [the directory API](#the-directory-api).
 
 Response `201`:
 
@@ -349,39 +402,43 @@ Response `201`:
   "clientId": "library",
   "clientSecret": "<43 random characters>",
   "redirectUris": ["https://library.tu-sofia.bg/auth/callback"],
-  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"]
+  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"],
+  "directory": false
 }
 ```
 
-- **The secret is shown once.** The portal stores only its BCrypt hash. Send it to the module team over a private channel.
-- `clientId`: 2 to 63 lower-case letters, digits or dashes. Registering the same one twice answers `409`. `unicloud-api` is reserved: it is the audience of the portal's own tokens.
+- **The secret is shown once.** The portal stores only its hash (Argon2id; secrets from before are BCrypt). Send it to the module team over a private channel.
+- `clientId`: 2 to 63 lower-case letters, digits or dashes, not starting with a dash. Registering the same one twice answers `409`. Ids starting with `unicloud-` are reserved (the portal's own audiences, such as `unicloud-directory`), and so are ids made only of digits, which look like a user's `sub`.
 - Every URL must follow the environment's rule (see [Callback URLs per environment](#callback-urls-per-environment)). In production that means `https` on a listed host; the answer is `400` otherwise. Everywhere: no fragments, user info, `*` or `,`.
 - Module teams do not need an admin to develop: on staging they register themselves (see [Testing a module against staging](#testing-a-module-against-staging)).
 - Only the `ADMIN` role may register. Anyone else gets `403`. Every registration is logged with the admin's user id.
-- A module may ask for the scopes `openid`, `profile`, `email` and `unicloud`.
+- A module may ask for the scopes `openid`, `profile`, `email` and `unicloud`, and, with the directory grant, `directory` through `client_credentials`.
 
 ## How the portal does it
 
-For the portal team.
+For the portal team. The plan behind it is in [openspec/changes/complete-java-portal](../openspec/changes/complete-java-portal/design.md); the exact wire behaviour is in [sso-wire-contract.md](sso-wire-contract.md).
 
-- **Library.** Spring's OAuth 2.0 Authorization Server, part of Spring Security 7 (`spring-boot-starter-security-oauth2-authorization-server`). Configuration: `sso/config/SsoAuthorizationServerConfig.java`. Its filter chain runs before the API chain and matches only the endpoints above.
-- **The SSO session.** `/oauth2/authorize` is a browser redirect and cannot carry the portal's Bearer token, which lives in the page's `sessionStorage`. So the SSO endpoints use a session cookie, `__Host-UNICLOUD_SSO` (`HttpOnly; Secure; SameSite=Lax`). It ends after 30 minutes idle, and `SsoSessionMaxAgeFilter` ends it 8 hours after the password (`app.sso.session-max-age`), so a browser left logged in on a shared lab PC does not stay logged in for good. Spring Session stores it in the database, so every replica sees it. The `__Host-` prefix stops a sibling subdomain from planting the cookie.
-- **Getting from a Bearer login to the session.** A browser without a session lands on `/login.html?sso=1`. After the normal login, the page calls `POST /api/v1/auth/sso-session` with its Bearer token (`sso/controller/SsoSessionController.java`). That creates the session with a new id and returns the saved `/oauth2/authorize` path, and the page opens it. The endpoint needs the Bearer header, so another site cannot trigger it with the user's cookie. It only ever returns an `/oauth2/authorize` path, so it cannot become an open redirect. If the user is already logged in to the portal, the page does this without asking for the password.
-- **The API stays stateless.** The API chain never reads the session, so the cookie cannot authenticate `/api/v1/...` calls. Portal tokens have `aud=unicloud-api`; module tokens have `aud=<client_id>` and the portal's URL as `iss`. Each side refuses the other's. In the SSO chain only `/userinfo` reads a Bearer token; `/oauth2/authorize` answers only to the SSO session.
+- **Library.** Spring's OAuth 2.0 Authorization Server, part of Spring Security 7 (`spring-boot-starter-security-oauth2-authorization-server`). Configuration: `sso/config/SsoAuthorizationServerConfig.java`. Its defaults are narrowed to what this guide promises: discovery lists only what is served, unused endpoints answer 404, an unknown module gets a plain 400, `openid` is required, access tokens carry `typ: at+jwt` and `client_id`.
+- **Filter chains, in order.** 0: the directory (`directory/config/DirectorySecurityConfig.java`). 1: single sign-on. 2: the cookie session for the portal UI: `/login`, `/password`, `/logout`, the app at `/app`, its JSON API under `/api/v1/portal`, `/ui/v1` (`accounts/config/PortalSessionSecurityConfig.java`). 3: the public routes, `/health`, `/`, `/api-docs`, `/openapi.json` and the staging tools; everything else answers 404 (`config/PublicRoutesSecurityConfig.java`). The portal has no JWT login of its own any more: its old login, static pages and REST routes were removed once the app replaced them.
+- **One session.** The portal UI and single sign-on share one session in the cookie `__Host-UNICLOUD_SSO` (`HttpOnly; Secure; SameSite=Lax`), stored by Spring Session in the database, so every replica sees it ([ADR 0003](adr/0003-one-cookie-session.md)). It ends after 30 minutes idle, and `SsoSessionMaxAgeFilter` ends it 8 hours after the password (`app.sso.session-max-age`). The `__Host-` prefix stops a sibling subdomain from planting the cookie. Every change through the UI carries the session's CSRF token (`X-CSRF-Token`, or the form field `csrf`).
+- **Sign-in.** `accounts/web/SignInController.java`: one message for a wrong email, a wrong password and a disabled user; the same password work for an unknown email; 10 failures in 15 minutes lock the email (`SignInThrottle`); a new session id; then the first-password change if due, else the waiting `/oauth2/authorize`, else a valid `next`, else the app. Passwords are Argon2id, BCrypt hashes from before are replaced at the next sign-in, and at most 4 hashes run at once per replica (`PortalPasswordEncoder`).
+- **The user on every request.** `PortalUserFilter`, in the portal and SSO chains, reads the user from the database: a disabled user is signed out at once, permission changes count at the next request, and a user who must change the first password gets only the password page (a module's login waits for it).
+- **Ending module logins.** `ModuleLogins` remembers, in the browser's session, the module logins made through it. Signing out (the portal's or `/connect/logout`) deletes them; a password change deletes all of the user's. `/userinfo` accepts only tokens the store still holds.
 - **Callback rule.** `SsoCallbackPolicy` holds the rule (`app.sso.callback-policy`, the host list). `SsoCallbackValidators` applies it to `/oauth2/authorize` and `/connect/logout`. In `any` mode it adds the request's callback to a copy of the module's registration for the library's check only, so the library's other checks (PKCE, scopes) still run. Nothing is saved.
-- **Staging tools.** The `staging` profile (`application-staging.properties`) sets the callback rule to `any` and turns on `staging/StagingToolsController.java` (routes and page) with `StagingUserService.java`. Without the profile the routes are never created, and `SecurityConfig` refuses `/staging` and `/api/v1/staging/**` to everyone, admins included. The page is `src/main/resources/staging/index.html`, served by the controller, not as a public static file.
+- **Staging tools.** The `staging` profile (`application-staging.properties`) sets the callback rule to `any` and turns on `staging/StagingToolsController.java` (routes and page) with `StagingUserService.java`. Without the profile the routes do not exist and answer 404 to everyone, admins included. The page is `src/main/resources/staging/index.html`, served by the controller, with its script in `staging.js`.
 - **Storage.** Flyway migration `V4__sso.sql` (and its PostgreSQL copy) adds the tables: `oauth2_registered_client`, `oauth2_authorization`, `oauth2_authorization_consent`, `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. `SsoAuthorizationCleanup` deletes logins older than a day, every hour.
 - **Single-use codes across replicas.** `SingleUseCodeAuthorizationService` adds a conditional `UPDATE` on `code_redeemed`, so only one exchange of a code can save its tokens. The losing exchange also revokes the winner's tokens.
-- **Keys.** The same RSA key pair as the portal's own tokens, published with its RFC 7638 thumbprint as `kid`.
+- **Directory.** `DirectoryTokenRequestConverter` turns `client_credentials` into a `directory` token, or `invalid_scope`. Those tokens have `aud=unicloud-directory`. The directory chain accepts only such tokens, and only while the library's store still holds them as valid. `/userinfo` refuses them. The queries are in `directory/DirectoryQueries.java`, plain SQL for both databases.
+- **Keys.** One RSA key pair (`APP_JWT_PRIVATE_KEY`, `APP_JWT_PUBLIC_KEY`), published with its RFC 7638 thumbprint as `kid`. Without it the portal refuses to start and says which variables to set.
 - **Issuer.** Production sets `APP_SSO_ISSUER` to `https://<the app's address>` on every deploy. Elsewhere the portal works it out from the request, using `X-Forwarded-Proto` from the proxy, and logs a warning at startup. On staging, set `APP_SSO_ISSUER` in Render to staging's `https` address, so the issuer never depends on the proxy.
 - **Time zones.** The library stores token times as `TIMESTAMP`. The MySQL connection uses `preserveInstants=true`, `connectionTimeZone=UTC` and `forceConnectionTimeZoneToSession=true` so they stay exact.
-- **Tests.** `sso/SsoFlowTests.java` runs the whole flow as a module would, through the real filters and database. `sso/SsoAuthorizationStoreTests.java` covers the single-use race and the cleanup. `sso/SsoSessionMaxAgeFilterTests.java` covers the 8-hour limit. `SsoCallbackPolicyTests` and `SsoAnyCallbackTests` cover the callback rules. `staging/StagingToolsTests.java` and `StagingToolsAbsentTests.java` cover the staging tools, on and off.
+- **Tests.** `sso/SsoFlowTests.java` runs the whole flow as a module would, through the real filters and database. `accounts/SignInTests.java` covers sign-in, the first password, sign-out and a module login through the sign-in page. `directory/DirectoryTests.java` covers the directory. `sso/SsoAuthorizationStoreTests.java` covers the single-use race and the cleanup. `sso/SsoSessionMaxAgeFilterTests.java` covers the 8-hour limit. `SsoCallbackPolicyTests` and `SsoAnyCallbackTests` cover the callback rules. `staging/StagingToolsTests.java` and `StagingToolsAbsentTests.java` cover the staging tools, on and off.
 
 ## Not done yet
 
-- **Listing, changing and deleting modules, and rotating a secret.** Today an admin can only register. Until there is an endpoint, a secret is replaced by deleting the row in `oauth2_registered_client` and registering again.
+- **Changing and deleting modules, and rotating a secret.** Today an admin can only register. Until there is a page for it, a secret is replaced by deleting the row in `oauth2_registered_client` and registering again.
 - **Signed client authentication (`private_key_jwt`).** A module would sign a short JWT with its own private key instead of sending a shared secret. Stronger, but more work for the module teams.
-- **Rate limiting.** Secrets are 256 random bits, so guessing one is not practical, but there is no limit on attempts at `/oauth2/token` (each one costs a BCrypt check), and every `GET /oauth2/authorize` without a session writes a session row. Best done at the ingress.
-- **Session reads on API calls.** A browser that has an SSO session sends its cookie with every API call too. The API ignores it for authentication, but Spring Session still reads that session row, and may update it, on those calls. This is extra load on the database at 08:00. A fix is to stop the API chain from touching the session.
+- **Rate limiting per IP.** Sign-in locks an email after 10 failures for 15 minutes (per replica). There is no limit per IP, and none on attempts at `/oauth2/token` (secrets are 256 random bits, so guessing one is not practical), and every `GET /oauth2/authorize` without a session writes a session row. Best done at the ingress.
+- **Session reads at 08:00.** Every call of the portal app reads its session row. The spike test measures what that costs the database.
 - **Single logout** across modules (see [Logout](#logout)).
 - **Key rotation.** Tokens already carry a `kid`, so a second key can be published next to the first when the time comes.

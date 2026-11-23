@@ -1,0 +1,3 @@
+# A clear start-up message when the signing key pair is missing (ops/SigningKeyFailureAnalyzer)
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+bg.tusofia.unicloud.portal.ops.SigningKeyFailureAnalyzer

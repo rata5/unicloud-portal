@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<!-- The error page for browsers (ErrorPages), as on the fork's Rust portal (src/ui/components.rs, error_page). -->
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Грешка')}"></head>
+<body>
+<header th:replace="~{layout :: topbar}"></header>
+<main id="main">
+    <section class="card narrow">
+        <p class="kicker" th:text="'Грешка ' + ${status}">Грешка</p>
+        <h1 th:text="${pageMessage}">Възникна грешка. Опитайте отново.</h1>
+        <p><a href="/">Към началната страница</a></p>
+    </section>
+</main>
+<footer th:replace="~{layout :: footer}"></footer>
+</body>
+</html>

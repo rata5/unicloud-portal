@@ -23,7 +23,9 @@ public final class UserPersistenceMapper {
                 user.getLastName(),
                 user.getRole(),
                 user.getPermissionsMask(),
+                user.getFacultyCode(),
                 user.isEnabled(),
+                user.mustChangePassword(),
                 user.getCreatedAt()
         );
     }
@@ -39,7 +41,9 @@ public final class UserPersistenceMapper {
                 entity.getLastName(),
                 entity.getRole(),
                 entity.getPermissionMask(),
+                entity.getFacultyCode(),
                 entity.isEnabled(),
+                entity.isMustChangePassword(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

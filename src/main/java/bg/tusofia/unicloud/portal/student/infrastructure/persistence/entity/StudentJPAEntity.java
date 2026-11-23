@@ -19,6 +19,9 @@ public class StudentJPAEntity {
     )
     private String facultyNumber;
 
+    @Column(name = "specialty_id")
+    private Integer specialtyId;
+
     @Column(
             name = "specialty",
             nullable = false,
@@ -48,12 +51,14 @@ public class StudentJPAEntity {
     public StudentJPAEntity(
             Long userId,
             String facultyNumber,
+            Integer specialtyId,
             String specialty,
             int studyYear,
             StudentStatus status) {
 
         this.userId = userId;
         this.facultyNumber = facultyNumber;
+        this.specialtyId = specialtyId;
         this.specialty = specialty;
         this.studyYear = (byte) studyYear;
         this.status = status;
@@ -65,6 +70,10 @@ public class StudentJPAEntity {
 
     public String getFacultyNumber() {
         return facultyNumber;
+    }
+
+    public Integer getSpecialtyId() {
+        return specialtyId;
     }
 
     public String getSpecialty() {

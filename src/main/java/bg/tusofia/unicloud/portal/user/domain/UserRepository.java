@@ -14,4 +14,7 @@ public interface UserRepository {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    /** Whether the faculty already has its one dean. */
+    boolean existsDeanOfFaculty(String facultyCode);
 }

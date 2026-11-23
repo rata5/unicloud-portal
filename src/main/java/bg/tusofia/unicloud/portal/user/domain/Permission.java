@@ -19,7 +19,11 @@ public enum Permission {
     COURSE_OFFERING_CREATE_MODIFY(7),
 
     ENROLLMENT_REQUEST_CREATE(8),
-    ENROLLMENT_REQUEST_ACCEPT_REJECT(9);
+    ENROLLMENT_REQUEST_ACCEPT_REJECT(9),
+
+    // A dean's view of the students of their own faculty (docs/adr/0002-grow-the-sso-contract.md).
+    // Bits never change: modules and stored masks depend on them. A new permission takes the next bit.
+    STUDENT_PROFILE_READ_FACULTY(10);
 
     private final int bitPosition;
 
