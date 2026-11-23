@@ -53,7 +53,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 ## 4. SSO provider alignment
 - [x] 4.1 Discovery lists only what is served; revocation, introspection and device endpoints switched off
 - [x] 4.2 Plain 400 page for an unknown client, a refused callback and a bad `response_type` without a trusted callback
-- [ ] 4.2b `response_type` other than `code` with a trusted callback: the spec asks for a redirect with `unsupported_response_type`; the library answers before the callback is known, so today it is a plain 400. Decide: change the spec (fail closed) or add a converter that checks the callback first
+- [x] 4.2b `response_type` other than `code`: a plain 400 with no redirect, even with a registered callback (decided 2026-11-23: fail closed; the spec says so now)
 - [x] 4.3 `invalid_request` when `openid` is missing from `scope`
 - [x] 4.4 `client_id` in the access token
 - [x] 4.5 `DiscoveryTests` and the new error cases in `SsoFlowTests`

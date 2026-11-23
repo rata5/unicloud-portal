@@ -517,6 +517,26 @@ class SsoFlowTests {
     }
 
     @Test
+    void anotherResponseTypeGetsAPlain400() throws Exception {
+        Client client = registerClient();
+
+        Pkce pkce = new Pkce();
+        MvcResult result = mockMvc.perform(get("/oauth2/authorize")
+                        .queryParam("response_type", "token")
+                        .queryParam("client_id", client.clientId())
+                        .queryParam("redirect_uri", client.redirectUri())
+                        .queryParam("scope", "openid")
+                        .queryParam("state", STATE)
+                        .queryParam("code_challenge", pkce.challenge())
+                        .queryParam("code_challenge_method", "S256")
+                        .accept(MediaType.TEXT_HTML))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        assertThat(result.getResponse().getRedirectedUrl()).isNull();
+        assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION)).isNull();
+    }
+
+    @Test
     void loginWithoutOpenidIsSentBackToTheModule() throws Exception {
         Client client = registerClient();
 

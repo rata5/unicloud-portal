@@ -45,7 +45,7 @@ With a live SSO session and a valid request, `/oauth2/authorize` SHALL answer 30
 - **THEN** the portal redirects straight to the callback with a code, without asking for a password
 
 ### Requirement: Plain 400 for untrusted callbacks
-The portal MUST answer a plain 400 page, and MUST NOT redirect, when `client_id` is unknown, when `redirect_uri` is missing and the module does not have exactly one registered callback, when `redirect_uri` is not allowed by the callback policy, or when it is not an absolute `http` or `https` URL.
+The portal MUST answer a plain 400 page, and MUST NOT redirect, when `client_id` is unknown, when `redirect_uri` is missing and the module does not have exactly one registered callback, when `redirect_uri` is not allowed by the callback policy, when it is not an absolute `http` or `https` URL, or when `response_type` is not `code`. A request that is not an authorization code request is not trusted enough to send the browser anywhere.
 
 #### Scenario: Unregistered callback in production
 - **WHEN** a production authorize request uses a callback that is not registered for the module
@@ -55,12 +55,16 @@ The portal MUST answer a plain 400 page, and MUST NOT redirect, when `client_id`
 - **WHEN** the registered callback is `https://library.tu-sofia.bg/auth/callback` and the request uses `https://library.tu-sofia.bg/auth/callback/../admin`
 - **THEN** the portal answers 400 with no redirect
 
+#### Scenario: Another response type
+- **WHEN** a request for a registered module and its registered callback uses `response_type=token`
+- **THEN** the portal answers 400 with no `Location` header
+
 #### Scenario: Javascript URL on staging
 - **WHEN** a staging authorize request uses `javascript:alert(1)` as callback
 - **THEN** the portal answers 400 with no redirect
 
 ### Requirement: Errors returned to a trusted callback
-Once the callback is trusted, request errors SHALL be returned as 302 to `<redirect_uri>?error=<code>&error_description=<text>&state=<state>`: `invalid_request` when `code_challenge` is missing, `code_challenge_method` is not `S256`, or `openid` is missing from `scope`; `invalid_scope` for a scope outside `openid profile email unicloud`; `unsupported_response_type` when `response_type` is not `code`.
+Once the callback is trusted, request errors SHALL be returned as 302 to `<redirect_uri>?error=<code>&error_description=<text>&state=<state>`: `invalid_request` when `code_challenge` is missing, `code_challenge_method` is not `S256`, or `openid` is missing from `scope`; `invalid_scope` for a scope outside `openid profile email unicloud`.
 
 #### Scenario: Missing PKCE
 - **WHEN** a signed-in user opens an authorize URL without `code_challenge`

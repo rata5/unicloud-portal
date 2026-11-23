@@ -292,7 +292,7 @@ These items above are no longer Spring defaults. Each is pinned by a test:
 - **Access tokens** carry the header `typ: at+jwt` and a `client_id` claim. ID tokens still carry no `typ` (`accessTokensAreTypedAndNameTheirModule`).
 - **`client_credentials`** works only for modules with the directory grant and only with scope `directory` (no scope means `directory`); anything else is 400 `invalid_scope`, not the library's `unauthorized_client`. The token has `aud=unicloud-directory` and works only at `/api/v1/directory/**` (`DirectoryTests`).
 - **Reserved client ids**: every `unicloud-*` id and ids made only of digits (`theApiAudienceCannotBeAClientId`).
-- **Still open**: `response_type` other than `code` with a trusted callback. The spec asks for a redirect with `unsupported_response_type`; the library answers before the callback is checked, so the portal gives a plain 400 (task 4.2b).
+- **`response_type` other than `code`** gets a plain 400 with no redirect, even with a registered callback. The library answers before it checks the callback, and the spec now asks for exactly that: fail closed (`SsoFlowTests.anotherResponseTypeGetsAPlain400`).
 
 ## Recorded from the Java staging (2026-11-20)
 
