@@ -1,23 +1,22 @@
 <!DOCTYPE html>
 <!-- The logout confirmation (PasswordController.confirmLogout): a module asked to sign the user out
-     without a valid id_token_hint, so the user confirms. Only the POST ends the session. -->
+     without a valid id_token_hint, so the user confirms. Only the POST ends the session. Markup and
+     texts as on the fork's Rust portal (src/ui/components.rs, confirm_logout). -->
 <html lang="bg" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Изход · UniCloud</title>
-    <link rel="stylesheet" href="/css/app.css">
-</head>
+<head th:replace="~{layout :: head('Изход')}"></head>
 <body>
-<main class="card card-narrow">
-    <p class="muted" th:text="${name}">Име</p>
-    <h1>Изход от UniCloud</h1>
-    <p>Модул на UniCloud иска да ви отпише. Изходът ще ви отпише от портала и от всички модули в този браузър.</p>
-    <form method="post" action="/logout">
-        <input type="hidden" name="csrf" th:value="${csrf}">
-        <button type="submit">Изход</button>
-    </form>
-    <p><a href="/app/">Остани влязъл</a></p>
+<header th:replace="~{layout :: topbar}"></header>
+<main id="main">
+    <section class="card narrow">
+        <h1>Изход от UniCloud?</h1>
+        <p>Ще излезете от портала и от всички модули в този браузър.</p>
+        <form method="post" action="/logout">
+            <input type="hidden" name="csrf" th:value="${csrf}">
+            <button class="primary" type="submit">Изход</button>
+            <a href="/">Отказ</a>
+        </form>
+    </section>
 </main>
+<footer th:replace="~{layout :: footer}"></footer>
 </body>
 </html>

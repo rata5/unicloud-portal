@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!-- The page shell of the server's own pages (sign-in, password, logout confirmation), as on the
+     fork's Rust portal (src/ui/components.rs, layout) with its stylesheet /assets/app.css.
+     The top bar shows the user when the page sets roleLabel. No htmx: these pages are plain forms. -->
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' · UniCloud'">UniCloud</title>
+    <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="topbar" th:fragment="topbar">
+    <a class="brand" href="/app/"><span class="brand-mark">U</span>UniCloud</a>
+    <th:block th:if="${roleLabel != null}">
+        <nav aria-label="Основна навигация"><a href="/app/">Към портала</a></nav>
+        <div class="who">
+            <span class="who-name" th:text="${name}">Име</span>
+            <span class="badge" th:text="${roleLabel}">Роля</span>
+            <form method="post" action="/logout">
+                <input type="hidden" name="csrf" th:value="${csrf}">
+                <button class="link" type="submit">Изход</button>
+            </form>
+        </div>
+    </th:block>
+</header>
+<footer class="footer" th:fragment="footer">UniCloud · Технически университет – София</footer>
+</body>
+</html>

@@ -22,6 +22,17 @@ public record PortalUser(
         String facultyCode,
         boolean mustChangePassword) {
 
+    /** The role in Bulgarian, as the app and the server's pages show it. */
+    public static String roleLabel(Role role) {
+        return switch (role) {
+            case ADMIN -> "Администратор";
+            case INSPECTOR -> "Инспектор";
+            case TEACHER -> "Преподавател";
+            case DEAN -> "Декан";
+            case STUDENT -> "Студент";
+        };
+    }
+
     /** The request attribute that holds the signed-in user, if any. */
     public static final String ATTRIBUTE = PortalUser.class.getName();
 

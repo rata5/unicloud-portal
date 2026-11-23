@@ -51,8 +51,8 @@ public class PasswordController {
         if (PortalUser.current(request) == null) {
             return "redirect:/login";
         }
+        // As on the fork, the confirmation shows no user in the top bar
         model.addAttribute("csrf", SignInController.csrfToken(request));
-        model.addAttribute("name", PortalUser.current(request).name());
         return "logout";
     }
 
@@ -100,7 +100,9 @@ public class PasswordController {
         PortalUser current = PortalUser.current(request);
         model.addAttribute("csrf", SignInController.csrfToken(request));
         model.addAttribute("forced", current != null && current.mustChangePassword());
+        // The top bar (layout.html) shows the user, with the role and the sign-out button
         model.addAttribute("name", current == null ? "" : current.name());
+        model.addAttribute("roleLabel", current == null ? null : PortalUser.roleLabel(current.role()));
         model.addAttribute("error", error);
         return "password";
     }

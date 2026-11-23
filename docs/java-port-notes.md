@@ -70,6 +70,7 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - `EnrollmentRulesRaceTests`: newcomers enroll while others cancel and the teacher rejects, at the same moment, three times; never oversold (task 3.7).
 - `docs/sso.md` ("Logout", "How the portal does it", "Not done yet", troubleshooting) and the README (sign-in, demo users, the app with `npm run dev`, the new settings, the `web` job) describe the new design (tasks 8.1, 8.2).
 - The full suite has 135 tests.
+- The sign-in, password and logout pages now look as on staging: the fork's page shell (top bar, footer) as `templates/layout.html`, its stylesheet copied unchanged to `static/assets/app.css`, its markup and texts. No htmx: the pages are plain forms.
 
 ## Next
 

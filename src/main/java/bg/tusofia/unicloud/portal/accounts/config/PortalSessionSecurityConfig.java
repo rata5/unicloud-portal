@@ -62,7 +62,7 @@ public class PortalSessionSecurityConfig {
 
         PathPatternRequestMatcher.Builder path = PathPatternRequestMatcher.withDefaults();
         return http
-                .securityMatcher("/login", "/password", "/logout", "/api/v1/portal/**", "/app", "/app/**", "/ui/v1/**")
+                .securityMatcher("/login", "/password", "/logout", "/api/v1/portal/**", "/app", "/app/**", "/ui/v1/**", "/assets/**")
                 // The plain token handler: the value from GET /api/v1/portal/me works for the
                 // whole session, as the app expects
                 .csrf(csrf -> csrf
@@ -82,7 +82,8 @@ public class PortalSessionSecurityConfig {
                         .invalidateHttpSession(true)
                         .clearAuthentication(true))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/logout", "/app", "/app/**", "/ui/v1/**").permitAll()
+                        // /assets: the stylesheet of the server's own pages (static/assets/app.css)
+                        .requestMatchers("/login", "/logout", "/app", "/app/**", "/ui/v1/**", "/assets/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .defaultAuthenticationEntryPointFor(PortalApiErrors.unauthenticated(),

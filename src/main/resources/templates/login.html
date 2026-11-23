@@ -1,32 +1,31 @@
 <!DOCTYPE html>
-<!-- Sign-in (SignInController). Texts as on the fork's Rust portal (accounts/handlers.rs). -->
+<!-- Sign-in (SignInController). Markup and texts as on the fork's Rust portal (accounts/handlers.rs, login_view). -->
 <html lang="bg" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Вход · UniCloud</title>
-    <link rel="stylesheet" href="/css/app.css">
-</head>
+<head th:replace="~{layout :: head('Вход')}"></head>
 <body>
-<main class="card card-narrow">
-    <p class="muted">Единен университетски портал</p>
-    <h1>Вход в UniCloud</h1>
-    <p class="muted" th:if="${sso}">Модул на UniCloud иска да ви идентифицира. Влезте веднъж тук и ще бъдете върнати обратно.</p>
-    <p class="error" role="alert" th:if="${error}" th:text="${error}">Грешка</p>
-
-    <form method="post" action="/login">
-        <input type="hidden" name="csrf" th:value="${csrf}">
-        <input type="hidden" name="next" th:if="${next}" th:value="${next}">
-
-        <label for="email">Имейл</label>
-        <input id="email" name="email" type="email" autocomplete="username" required autofocus th:value="${email}">
-
-        <label for="password">Парола</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-
-        <button type="submit">Вход</button>
-    </form>
-    <p class="muted">Нямате профил? Студентите получават профил от учебен отдел, служителите от администратор.</p>
+<header th:replace="~{layout :: topbar}"></header>
+<main id="main">
+    <section class="card narrow login">
+        <p class="kicker">Единен университетски портал</p>
+        <h1>Вход в UniCloud</h1>
+        <p class="muted" th:if="${sso}">Модул на UniCloud иска да ви идентифицира. Влезте веднъж тук и ще бъдете върнати обратно.</p>
+        <div class="flash flash-error" role="status" th:if="${error}" th:text="${error}">Грешка</div>
+        <form method="post" action="/login">
+            <input type="hidden" name="csrf" th:value="${csrf}">
+            <input type="hidden" name="next" th:if="${next}" th:value="${next}">
+            <label class="field">
+                <span>Имейл</span>
+                <input type="email" name="email" th:value="${email}" required autocomplete="username">
+            </label>
+            <label class="field">
+                <span>Парола</span>
+                <input type="password" name="password" value="" required autocomplete="current-password">
+            </label>
+            <button class="primary" type="submit">Вход</button>
+        </form>
+        <p class="muted small">Нямате профил? Студентите получават профил от учебен отдел, служителите от администратор.</p>
+    </section>
 </main>
+<footer th:replace="~{layout :: footer}"></footer>
 </body>
 </html>

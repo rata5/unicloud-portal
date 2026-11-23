@@ -51,7 +51,7 @@ public class MeController {
         me.put("family_name", user.lastName());
         me.put("name", user.name());
         me.put("role", user.role().name());
-        me.put("role_label", roleLabel(user.role()));
+        me.put("role_label", PortalUser.roleLabel(user.role()));
         me.put("faculty", profile.get("faculty"));
         me.put("permissions", user.permissions().stream().map(Permission::name).toList());
 
@@ -122,7 +122,7 @@ public class MeController {
             List<Map<String, Object>> roles = new ArrayList<>();
             for (Role role : List.of(Role.TEACHER, Role.DEAN, Role.INSPECTOR, Role.ADMIN)) {
                 if (role != Role.ADMIN || user.role() == Role.ADMIN) {
-                    roles.add(Hypermedia.choice(roleLabel(role), role.name()));
+                    roles.add(Hypermedia.choice(PortalUser.roleLabel(role), role.name()));
                 }
             }
             controls.template("createStaff", Hypermedia.form("Нов служител", "POST", Hypermedia.API + "/admin/staff")
@@ -196,17 +196,6 @@ public class MeController {
         }
         return Hypermedia.controls().link("self", Hypermedia.API + "/students/" + sub)
                 .on(userClaims.profile(String.valueOf(sub)).orElseThrow(PortalApiException::notFound));
-    }
-
-    /** The role in Bulgarian, as the app shows it. */
-    static String roleLabel(Role role) {
-        return switch (role) {
-            case ADMIN -> "Администратор";
-            case INSPECTOR -> "Инспектор";
-            case TEACHER -> "Преподавател";
-            case DEAN -> "Декан";
-            case STUDENT -> "Студент";
-        };
     }
 
     /** The app's navigation (paths under /app), by permission; the server checks again on every call. */

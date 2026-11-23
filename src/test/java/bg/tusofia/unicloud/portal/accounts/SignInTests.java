@@ -89,7 +89,11 @@ class SignInTests {
         Browser browser = new Browser();
 
         String page = browser.perform(get("/login")).getResponse().getContentAsString();
-        assertThat(page).contains("Вход в UniCloud").contains("name=\"csrf\"");
+        assertThat(page).contains("Вход в UniCloud").contains("name=\"csrf\"").contains("href=\"/assets/app.css\"");
+        // The stylesheet is open to everyone, as the page is
+        MvcResult css = mockMvc.perform(get("/assets/app.css")).andReturn();
+        assertThat(css.getResponse().getStatus()).isEqualTo(200);
+        assertThat(css.getResponse().getContentType()).startsWith("text/css");
 
         for (String[] attempt : new String[][]{{email, "not-the-password"}, {"nobody-" + email, PASSWORD}}) {
             MvcResult refused = browser.perform(signIn(browser.csrf(), attempt[0], attempt[1], null));
@@ -317,7 +321,7 @@ class SignInTests {
 
         assertThat(browser.perform(get("/connect/logout")).getResponse().getRedirectedUrl()).endsWith("/logout");
         String page = browser.perform(get("/logout")).getResponse().getContentAsString();
-        assertThat(page).contains("Модул на UniCloud иска да ви отпише");
+        assertThat(page).contains("Изход от UniCloud?").contains("href=\"/assets/app.css\"");
         assertThat(browser.perform(get("/password")).getResponse().getStatus()).as("nothing ended yet").isEqualTo(200);
 
         // Only the confirmation, with the session's token, signs out
