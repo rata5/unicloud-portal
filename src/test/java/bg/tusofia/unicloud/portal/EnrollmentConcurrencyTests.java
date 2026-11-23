@@ -1,20 +1,13 @@
 package bg.tusofia.unicloud.portal;
 
-import bg.tusofia.unicloud.portal.dto.EnrollmentRequest;
-import bg.tusofia.unicloud.portal.entity.Course;
-import bg.tusofia.unicloud.portal.entity.CourseOffering;
-import bg.tusofia.unicloud.portal.exception.EnrollmentException;
-import bg.tusofia.unicloud.portal.repository.CourseOfferingRepository;
-import bg.tusofia.unicloud.portal.repository.CourseRepository;
-import bg.tusofia.unicloud.portal.repository.EnrollmentRepository;
-import bg.tusofia.unicloud.portal.repository.UserRepository;
-import bg.tusofia.unicloud.portal.service.EnrollmentService;
+import bg.tusofia.unicloud.portal.enrollment.EnrollmentRules;
 import bg.tusofia.unicloud.portal.support.TestJwtKeys;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -31,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Students racing for the last seats must never oversell an offering, on MySQL (production) or
  * PostgreSQL (staging). The pipeline runs this class on both. Each enrollment commits for real,
- * so the test removes its own rows afterwards.
+ * so the test removes its own rows afterwards. The mixed race, with cancels and rejections, is
+ * EnrollmentRulesRaceTests.
  */
 @SpringBootTest
 class EnrollmentConcurrencyTests {
@@ -39,7 +33,7 @@ class EnrollmentConcurrencyTests {
 	/** The active students in V2__test_data.sql. */
 	private static final List<Long> ACTIVE_STUDENT_IDS = List.of(4L, 5L, 6L, 8L);
 
-	/** ivan.petrov@tu-sofia.bg in V2__test_data.sql. */
+	/** ivan.petrov@tu-sofia.bg in V2__test_data.sql, a teacher of FCST since V5. */
 	private static final long TEACHER_ID = 1L;
 
 	private static final int CAPACITY = 2;
@@ -50,69 +44,58 @@ class EnrollmentConcurrencyTests {
 	}
 
 	@Autowired
-	private EnrollmentService enrollmentService;
+	private EnrollmentRules enrollment;
 
 	@Autowired
-	private CourseRepository courseRepository;
+	private JdbcTemplate jdbc;
 
-	@Autowired
-	private CourseOfferingRepository offeringRepository;
-
-	@Autowired
-	private EnrollmentRepository enrollmentRepository;
-
-	@Autowired
-	private UserRepository userRepository;
-
-	private Course course;
-	private CourseOffering offering;
+	private long course;
+	private long offering;
 
 	@BeforeEach
 	void createOffering() {
 		// Codes are at most 16 characters and must be unique across repetitions
 		String code = "RACE" + System.nanoTime() % 1_000_000_000L;
-		course = courseRepository.save(new Course(code, "Concurrency test", 1));
-		offering = offeringRepository.save(new CourseOffering(
-				course, "2099-00-T", userRepository.findById(TEACHER_ID).orElseThrow(), CAPACITY));
+		jdbc.update("INSERT INTO courses (code, title, ects_credits, faculty_code) VALUES (?, 'Concurrency test', 1, 'FCST')", code);
+		course = jdbc.queryForObject("SELECT id FROM courses WHERE code = ?", Long.class, code);
+		jdbc.update("INSERT INTO course_offerings (course_id, semester, teacher_id, capacity, is_open) VALUES (?, ?, ?, ?, TRUE)",
+				course, enrollment.currentSemester(), TEACHER_ID, CAPACITY);
+		offering = jdbc.queryForObject("SELECT id FROM course_offerings WHERE course_id = ?", Long.class, course);
 	}
 
 	@AfterEach
 	void removeOffering() {
-		enrollmentRepository.deleteAll(enrollmentRepository.findByOfferingId(offering.getId()));
-		offeringRepository.delete(offering);
-		courseRepository.delete(course);
+		jdbc.update("DELETE FROM enrollments WHERE offering_id = ?", offering);
+		jdbc.update("DELETE FROM course_offerings WHERE id = ?", offering);
+		jdbc.update("DELETE FROM courses WHERE id = ?", course);
 	}
 
 	@RepeatedTest(5)
 	void studentsRacingForTheLastSeatsNeverOversell() throws Exception {
 		CountDownLatch start = new CountDownLatch(1);
 		ExecutorService pool = Executors.newFixedThreadPool(ACTIVE_STUDENT_IDS.size());
-		List<Future<Boolean>> results = new ArrayList<>();
+		List<Future<EnrollmentRules.Outcome>> results = new ArrayList<>();
 		try {
 			for (Long studentId : ACTIVE_STUDENT_IDS) {
 				results.add(pool.submit(() -> {
 					start.await();
-					try {
-						enrollmentService.enroll(new EnrollmentRequest(studentId, offering.getId()));
-						return true;
-					} catch (EnrollmentException e) {
-						assertEquals(EnrollmentException.ErrorCode.COURSE_FULL, e.getErrorCode());
-						return false;
-					}
+					return enrollment.enroll(studentId, offering);
 				}));
 			}
 			start.countDown();
 
 			int enrolled = 0;
-			for (Future<Boolean> result : results) {
-				if (result.get(30, TimeUnit.SECONDS)) {
+			for (Future<EnrollmentRules.Outcome> result : results) {
+				EnrollmentRules.Outcome outcome = result.get(30, TimeUnit.SECONDS);
+				if (outcome == EnrollmentRules.Outcome.ENROLLED) {
 					enrolled++;
+				} else {
+					assertEquals(EnrollmentRules.Outcome.FULL, outcome, "the only other outcome");
 				}
 			}
 
 			assertEquals(CAPACITY, enrolled, "successful enrollments");
-			assertEquals(CAPACITY, enrollmentRepository.countEnrolledByOfferingId(offering.getId()),
-					"ENROLLED rows in the database");
+			assertEquals(CAPACITY, enrollment.taken(offering), "ENROLLED rows in the database");
 		} finally {
 			pool.shutdownNow();
 		}

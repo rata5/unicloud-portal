@@ -70,18 +70,17 @@ public class RequestLogFilter extends OncePerRequestFilter {
      * enrolling is {@code /courses/{id}/enroll}, cancelling and rejecting are under /enrollments.
      */
     static String routeGroup(String path) {
-        if (path.equals("/login") || path.equals("/password") || path.equals("/api/v1/auth/login")) {
+        if (path.equals("/login") || path.equals("/password")) {
             return "sign-in";
         }
-        if (path.equals("/api/v1/users/me") || path.startsWith("/api/v1/portal/profile")
+        if (path.startsWith("/api/v1/portal/profile")
                 || path.startsWith("/api/v1/portal/students/")) {
             return "profile";
         }
         if (path.contains("/enrollments") || path.contains("/enroll")) {
             return "enrollment";
         }
-        if (path.startsWith("/api/v1/courses") || path.startsWith("/api/v1/offerings")
-                || path.startsWith("/api/v1/portal/courses")) {
+        if (path.startsWith("/api/v1/portal/courses")) {
             return "catalogue";
         }
         if (path.equals("/oauth2/token")) {

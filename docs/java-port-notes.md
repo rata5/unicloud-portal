@@ -74,10 +74,17 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - Error pages for browsers in the same look (`ErrorPages`, `error.html`), with the fork's messages: a bad module login names client_id and redirect_uri, an old form says it expired.
 - The full suite has 136 tests.
 
+### Step 6, the switch-over (2026-11-23)
+- The app was checked in a browser against the Java portal, every role and form (react-hypermedia-ui 4.2).
+- Removed: the portal's own JWT (`/api/v1/auth/login`, `/me`, `/register`, `/sso-session`, the `unicloud-api` resource server), `POST /api/v1/sso/clients`, the old REST routes (courses, offerings, enrollments, students, `/api/v1/users/me`) with their services, entities and repositories, and the static pages `login.html`, `profile.html`, `courses.html` (tasks 2.6, 4.3). That also closes the old routes' missing permission checks.
+- The last filter chain (`config/PublicRoutesSecurityConfig`) serves only `/health`, `/`, the API docs and the staging tools; everything else answers 404, with or without a token.
+- The signing key moved to `sso/config/SigningKeyConfig`, the password encoder to `PortalSessionSecurityConfig`. Module token lifetime is `app.sso.token-ttl-minutes` (30). `APP_JWT_PRIVATE_KEY` and `APP_JWT_PUBLIC_KEY` stay.
+- `SsoFlowTests` and `SsoAnyCallbackTests` sign in at `/login` (task 2.8), with users from `support/TestUsers`. `EnrollmentConcurrencyTests` races on `EnrollmentRules`.
+- The full suite has 124 tests (the old pages' and JWT tests went with them).
+
 ## Next
 
-- Check the React app against the Java backend in a browser (needs npm), and regenerate `schema.d.ts` from the pinned contract (task 4.1b).
-- Then the switch-over: remove the JWT login, the old static pages and the old REST routes (task 2.6), move `SsoFlowTests` to `/login` (2.8).
+- Regenerate `schema.d.ts` from the pinned contract and put the "types match" check back in CI (task 4.1b).
 - Tell the module teams what changed (task 8.3). They do not register again.
 - In the release after: the V5 clean-ups (task 8.4).
 

@@ -49,9 +49,10 @@ class SecurityHeadersTests {
 
     @Test
     void thePortalsPagesAndApi() throws Exception {
-        hardened(mockMvc.perform(get("/login.html")));
+        hardened(mockMvc.perform(get("/login")));
         hardened(mockMvc.perform(get("/health")));
-        hardened(mockMvc.perform(get("/api/v1/users/me")));   // 401, still hardened
+        hardened(mockMvc.perform(get("/api/v1/portal/me")));   // 401, still hardened
+        hardened(mockMvc.perform(get("/no-such-page")));       // 404, still hardened
     }
 
     @Test

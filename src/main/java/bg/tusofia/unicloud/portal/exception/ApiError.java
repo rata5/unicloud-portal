@@ -1,4 +1,4 @@
-package bg.tusofia.unicloud.portal.dto;
+package bg.tusofia.unicloud.portal.exception;
 
 import java.time.Instant;
 import java.util.List;

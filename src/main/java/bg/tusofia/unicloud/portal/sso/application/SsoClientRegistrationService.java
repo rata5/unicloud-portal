@@ -43,7 +43,6 @@ public class SsoClientRegistrationService {
     private final SsoCallbackPolicy callbackPolicy;
     private final Duration codeTimeToLive;
     private final Duration tokenTimeToLive;
-    private final String apiAudience;
     private final SecureRandom random = new SecureRandom();
 
     public SsoClientRegistrationService(
@@ -51,15 +50,13 @@ public class SsoClientRegistrationService {
             PasswordEncoder passwordEncoder,
             SsoCallbackPolicy callbackPolicy,
             @Value("${app.sso.code-ttl-seconds}") long codeTtlSeconds,
-            @Value("${app.jwt.ttl-minutes}") long tokenTtlMinutes,
-            @Value("${app.jwt.audience}") String apiAudience) {
+            @Value("${app.sso.token-ttl-minutes}") long tokenTtlMinutes) {
 
         this.clientRepository = clientRepository;
         this.passwordEncoder = passwordEncoder;
         this.callbackPolicy = callbackPolicy;
         this.codeTimeToLive = Duration.ofSeconds(codeTtlSeconds);
         this.tokenTimeToLive = Duration.ofMinutes(tokenTtlMinutes);
-        this.apiAudience = apiAudience;
     }
 
     /**
@@ -69,8 +66,8 @@ public class SsoClientRegistrationService {
     public RegisterSsoClientResponse register(RegisterSsoClientRequest request, String registeredBy) {
         String secret = newSecret();
 
-        // A module's tokens carry its client id as "aud". The portal API's own audience must
-        // never be one, or the API's audience check would accept that module's tokens.
+        // A module's tokens carry its client id as "aud". The portal's own audiences
+        // (unicloud-directory, and unicloud-api from before) must never be one.
         if (isReserved(request.clientId())) {
             throw new IllegalArgumentException("clientId: '" + request.clientId() + "' is reserved");
         }
@@ -135,13 +132,12 @@ public class SsoClientRegistrationService {
 
     /**
      * Ids the portal keeps for itself: every {@code unicloud-*} id (the portal's own audiences,
-     * such as {@code unicloud-api}), and ids made only of digits, which could be mistaken for a
+     * such as {@code unicloud-directory}), and ids made only of digits, which could be mistaken for a
      * user's {@code sub}.
      */
     private boolean isReserved(String clientId) {
         String id = clientId.strip();
-        return id.equalsIgnoreCase(apiAudience)
-                || id.toLowerCase(java.util.Locale.ROOT).startsWith("unicloud-")
+        return id.toLowerCase(java.util.Locale.ROOT).startsWith("unicloud-")
                 || (!id.isEmpty() && id.chars().allMatch(Character::isDigit));
     }
 }

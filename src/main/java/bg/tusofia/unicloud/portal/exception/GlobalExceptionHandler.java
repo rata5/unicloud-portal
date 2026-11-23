@@ -14,7 +14,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import bg.tusofia.unicloud.portal.dto.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
@@ -46,23 +45,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
-    @ExceptionHandler(EnrollmentException.class)
-    public ResponseEntity<ApiError> handleEnrollmentException(EnrollmentException ex, HttpServletRequest request) {
-        log.warn("Enrollment error [{}]: {}", ex.getErrorCode(), ex.getMessage());
-        HttpStatus status = switch (ex.getErrorCode()) {
-            case COURSE_CLOSED, COURSE_FULL, STUDENT_NOT_ACTIVE -> HttpStatus.BAD_REQUEST;
-            case ALREADY_ENROLLED, ALREADY_CANCELLED -> HttpStatus.CONFLICT;
-            case ENROLLMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
-        };
-        ApiError error = ApiError.of(
-                status.value(),
-                status.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()
-        );
-        return ResponseEntity.status(status).body(error);
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ApiError.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
@@ -80,8 +62,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * A failed {@code @PreAuthorize} check (or a service refusing an action) surfaces here, before
-     * Spring Security's own handler gets a chance; without this method the catch-all below would
+     * A service refusing an action surfaces here; without this method the catch-all below would
      * turn it into a 500.
      */
     @ExceptionHandler(AccessDeniedException.class)

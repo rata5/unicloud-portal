@@ -1,8 +1,6 @@
 package bg.tusofia.unicloud.portal.directory;
 
-import bg.tusofia.unicloud.portal.auth.application.AccessTokenIssuer;
 import bg.tusofia.unicloud.portal.support.TestJwtKeys;
-import bg.tusofia.unicloud.portal.user.domain.User;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +22,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -68,9 +65,6 @@ class DirectoryTests {
 
     @Autowired
     private JdbcTemplate jdbc;
-
-    @Autowired
-    private AccessTokenIssuer portalTokens;
 
     private MockMvc mockMvc;
 
@@ -135,8 +129,7 @@ class DirectoryTests {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/directory/users/4").header(HttpHeaders.AUTHORIZATION, "Bearer not.a.token"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/v1/directory/users/4").header(HttpHeaders.AUTHORIZATION, portalToken()))
-                .andExpect(status().isUnauthorized());
+        // A module's token from a user login is refused too (SsoFlowTests)
 
         // The directory token works there, but nowhere a user's token is wanted
         mockMvc.perform(get("/api/v1/directory/users/4").header(HttpHeaders.AUTHORIZATION, bearer(directoryToken)))
@@ -328,12 +321,6 @@ class DirectoryTests {
         return json.readTree(mockMvc.perform(tokenRequest(register(true), "directory"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString()).get("access_token").asString();
-    }
-
-    private String portalToken() {
-        LocalDateTime now = LocalDateTime.now();
-        User admin = User.reconstitute(9L, "admin@tu-sofia.bg", "hash", "Admin", "User", "ADMIN", null, true, now, now);
-        return "Bearer " + portalTokens.issue(admin).value();
     }
 
     private School newSchool() throws Exception {

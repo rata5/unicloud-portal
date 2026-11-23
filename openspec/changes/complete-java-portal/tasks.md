@@ -32,10 +32,10 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] 2.3 `PortalUser` loaded per request; disabled users anonymous at once
 - [x] 2.4 `DelegatingPasswordEncoder` with Argon2id; BCrypt hashes verify and are upgraded at sign-in; same timing for unknown emails
 - [x] 2.5 `must_change_password` (column added by V6 in group 7) and `/password`; held back for pages, the API and `/oauth2/authorize`
-- [ ] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404. Only once the app is served and checked against the Java portal (react-hypermedia-ui task 4.3); until then the JWT login and the cookie session work side by side
+- [x] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404. Only once the app is served and checked against the Java portal (react-hypermedia-ui task 4.3); until then the JWT login and the cookie session work side by side
 - [x] 2.7 Staging routes answer 404 without the profile
-- [ ] 2.8 `SsoFlowTests` and the other suites sign in through `/login`; new session, CSRF and first-password tests (new tests done: `SignInTests`, `SignInThrottleTests`, `PortalPasswordEncoderTests`; `SsoFlowTests` still uses the old bridge until 2.6)
-- [ ] 2.9 Lands together with group 6's sign-in page and app shell, so there is always a working sign-in
+- [x] 2.8 `SsoFlowTests` and the other suites sign in through `/login`; new session, CSRF and first-password tests (`SignInTests`, `SignInThrottleTests`, `PortalPasswordEncoderTests`; `SsoFlowTests` and `SsoAnyCallbackTests` sign in at `/login` and register modules through the admin API; `PublicRoutesTests` checks the old routes answer 404)
+- [x] 2.9 Lands together with group 6's sign-in page and app shell, so there is always a working sign-in
 - [x] 2.10 Sign-in throttling: 10 failures in 15 minutes lock the email for 15 minutes
 - [x] 2.11 At most 4 password hashes at once per replica
 - [x] 2.12 A password change revokes the user's module logins; the new password must differ

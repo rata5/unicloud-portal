@@ -18,13 +18,13 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 
 ## 3. Frontend (UI owner)
 - [x] 3.1 `web/` with the app and `@unicloud/ui` 1.0.0 in this repository (`948a62c`, from the fork at `c16da1a`)
-- [ ] 3.2 The app runs against the Java portal unchanged
+- [x] 3.2 The app runs against the Java portal unchanged
 - [ ] 3.3 Move navigation, buttons and forms to the links and templates, page by page
 
 ## 4. Build and switch-over
 - [x] 4.1 Docker Node stage, CI `web` job (without the fork's "types match" check until `schema.d.ts` is regenerated from the pinned contract: 4.1b)
 - [ ] 4.1b Regenerate `web/apps/portal/src/api/schema.d.ts` with `npm run gen:api` (from the pinned contract) and add the "types match" check back to the `web` job
-- [ ] 4.2 Checked in a browser against the Java portal: sign-in return, catalogue, enroll, cancel, sign-out, every staff and inspector form, module secret, status change, teacher reject, phone width
-- [ ] 4.3 Remove the old static pages and the JWT login (complete-java-portal task 2.6)
+- [x] 4.2 Checked in a browser against the Java portal: sign-in return, catalogue, enroll, cancel, sign-out, every staff and inspector form, module secret, status change, teacher reject, phone width
+- [x] 4.3 Remove the old static pages and the JWT login (complete-java-portal task 2.6)
 - [ ] 4.4 Checked on staging after deploy: app, 401 JSON, package and stylesheet with CORS, missing asset 404
 - [ ] 4.5 Ask the other teams which components they need (see `docs/proposals/ui-sharing.md`)

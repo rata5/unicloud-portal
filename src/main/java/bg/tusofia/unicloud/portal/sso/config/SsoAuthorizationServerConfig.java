@@ -71,11 +71,10 @@ import java.util.Map;
  * server on the portal (docs/sso.md). It serves /oauth2/authorize, /oauth2/token, /oauth2/jwks,
  * /.well-known/openid-configuration, /userinfo and /connect/logout.
  *
- * <p>Its filter chain runs before the API chain in SecurityConfig and matches only those
- * endpoints. It is the one place in the portal that uses a browser session (cookie UNICLOUD_SSO,
- * stored in MySQL by Spring Session): /oauth2/authorize is a browser redirect and cannot carry
- * a Bearer token. The login page turns a Bearer login into that session through
- * {@code POST /api/v1/auth/sso-session} (SsoSessionController).
+ * <p>Its filter chain (order 1) matches only those endpoints. It reads the browser's session, the
+ * one the portal UI signs in with (cookie __Host-UNICLOUD_SSO, stored in the database by Spring
+ * Session; ADR 0003). A browser without one is sent to /login?sso=1, and the sign-in page
+ * continues the waiting /oauth2/authorize.
  */
 @Configuration
 @EnableScheduling

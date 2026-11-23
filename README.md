@@ -108,7 +108,7 @@ docs/                             Requirements (prd.md, slo.md), decisions (adr/
      -e MYSQL_ROOT_PASSWORD=dev -e MYSQL_DATABASE=unicloud mysql:8.4
    ```
 
-3. Create the key pair the app signs login tokens with. It lives in `secrets/`, which git ignores, so every checkout makes its own (once):
+3. Create the key pair the app signs single sign-on tokens with. It lives in `secrets/`, which git ignores, so every checkout makes its own (once):
 
    ```bash
    mkdir -p secrets
@@ -215,7 +215,7 @@ A failed `deploy` is usually an Azure problem rather than your code: send the ru
 
 The pipeline's secrets (`AZURE_*`, `DATABASE_URL`, `GHCR_PAT`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`) are managed by DevOps under **Settings → Secrets and variables → Actions**. You don't need them, and credentials must never appear in code.
 
-`JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY` hold the PEM text of the key pair production signs login tokens with (the deploy passes them to the app as Container App secrets). Create it once with the `openssl` commands from "Get set up", paste each file's full contents into its secret, and keep the private key nowhere else. Rotating the pair logs every user out, so do it between semesters.
+`JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY` hold the PEM text of the key pair production signs single sign-on tokens with (the deploy passes them to the app as Container App secrets). Create it once with the `openssl` commands from "Get set up", paste each file's full contents into its secret, and keep the private key nowhere else. Rotating the pair stops every token signed with the old key: access tokens already given out fail at `/userinfo`, and modules must read the new key from `/oauth2/jwks`. Users stay signed in to the portal. Do it between semesters.
 
 Staging has its own settings, kept in Render on the `unicloud-portal-staging` service's **Environment** page: its `DATABASE_URL` (Render's PostgreSQL database), `SPRING_FLYWAY_LOCATIONS=classpath:db/migration-postgresql`, its own key pair in `APP_JWT_PRIVATE_KEY` and `APP_JWT_PUBLIC_KEY`, `APP_SSO_ISSUER` set to staging's `https://` address (the issuer of single sign-on tokens), and `SPRING_PROFILES_ACTIVE=staging`. The profile lets other modules' developers use any callback URL, and opens the staging tools at `/staging`, where they create test users with any permissions and register their module without logging in (see [docs/sso.md](docs/sso.md)). Never set that profile on production. Never reuse production's values there. Production's `APP_SSO_ISSUER` is set by the `deploy` job.
 

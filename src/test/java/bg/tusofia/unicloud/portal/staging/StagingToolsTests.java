@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.staging;
 
+import bg.tusofia.unicloud.portal.support.PortalBrowser;
 import bg.tusofia.unicloud.portal.sso.application.SsoCallbackPolicy;
 import bg.tusofia.unicloud.portal.support.TestJwtKeys;
 import jakarta.servlet.Filter;
@@ -18,8 +19,6 @@ import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +56,10 @@ class StagingToolsTests {
     private Filter springSecurityFilterChain;
 
     @Autowired
+    @Qualifier("springSessionRepositoryFilter")
+    private Filter sessionRepositoryFilter;
+
+    @Autowired
     private SsoCallbackPolicy callbackPolicy;
 
     private MockMvc mockMvc;
@@ -64,7 +67,7 @@ class StagingToolsTests {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
-                .addFilters(springSecurityFilterChain)
+                .addFilters(sessionRepositoryFilter, springSecurityFilterChain)
                 .build();
     }
 
@@ -79,9 +82,9 @@ class StagingToolsTests {
                 .andExpect(jsonPath("$.faculty").value("FCST"))
                 .andExpect(jsonPath("$.permissions.length()").value(2));
 
-        JsonNode token = loginToken(email);
-        assertThat(token.get("role").asString()).isEqualTo("TEACHER");
-        assertThat(token.get("permissions").toString())
+        JsonNode user = signedInUser(email);
+        assertThat(user.get("role").asString()).isEqualTo("TEACHER");
+        assertThat(user.get("permissions").toString())
                 .contains("STUDENT_PROFILE_READ_ANY", "COURSE_CREATE_MODIFY")
                 .doesNotContain("COURSE_OFFERING_READ");
     }
@@ -212,14 +215,9 @@ class StagingToolsTests {
         assertThat(callbackPolicy.acceptsAnyCallback()).isTrue();
     }
 
-    private JsonNode loginToken(String email) throws Exception {
-        String body = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\": \"%s\", \"password\": \"%s\"}".formatted(email, PASSWORD)))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        String token = json.readTree(body).get("accessToken").asString();
-        return json.readTree(new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8));
+    /** Signs in at /login with the user's password and returns the user as the app sees it. */
+    private JsonNode signedInUser(String email) throws Exception {
+        return PortalBrowser.signedIn(mockMvc, email, PASSWORD).get("/api/v1/portal/me").json().get("user");
     }
 
     private static String userJson(String email, String role, String permissions, String student) {

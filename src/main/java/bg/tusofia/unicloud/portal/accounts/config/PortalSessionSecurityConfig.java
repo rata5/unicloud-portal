@@ -1,5 +1,7 @@
 package bg.tusofia.unicloud.portal.accounts.config;
 
+import bg.tusofia.unicloud.portal.accounts.infrastructure.PortalPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import bg.tusofia.unicloud.portal.sso.infrastructure.ModuleLogins;
 import bg.tusofia.unicloud.portal.accounts.web.PortalApiErrors;
 import bg.tusofia.unicloud.portal.accounts.web.PortalUserFilter;
@@ -37,10 +39,16 @@ import java.time.Duration;
  *       /oauth2/authorize), and this chain must not overwrite it.</li>
  *   <li>API errors are JSON, never redirects (PortalApiErrors).</li>
  * </ul>
- * Order 2: after the directory (0) and SSO (1) chains, before the old portal chain (3).
+ * Order 2: after the directory (0) and SSO (1) chains, before the public routes (3, PublicRoutesSecurityConfig).
  */
 @Configuration
 public class PortalSessionSecurityConfig {
+
+    /** Argon2id for new hashes; BCrypt hashes from before still verify (PortalPasswordEncoder). */
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new PortalPasswordEncoder();
+    }
 
     /** The CSRF tokens of the session, shared with PortalSession (a new one at sign-in). */
     @Bean

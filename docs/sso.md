@@ -195,7 +195,7 @@ Check all of these. Most OIDC libraries do it for you:
 - Never pass portal tokens to browser JavaScript. Never put them in URLs or logs.
 - Use your own session for your own app. Use the `role` and `permissions` claims as input to your own authorization checks, not as a replacement for them.
 - Treat a role or permission you do not know as no access (see [User claims](#user-claims)).
-- A token from a user login works only for that module and for `/userinfo`. A client-credentials token works only for the directory API. The portal's own API (`/api/v1/...`) refuses both.
+- A token from a user login works only for that module and for `/userinfo`. A client-credentials token works only for the directory API. The portal's own API (`/api/v1/portal/...`) refuses both: it answers only to a signed-in browser.
 
 ## User claims
 
@@ -377,11 +377,11 @@ Configure each environment separately: the issuer, client id and secret all diff
 
 ## Registering a module (portal admins)
 
-A portal admin registers each module once, on the portal page **Модули** (`/app/admin/modules`; the app calls `POST /api/v1/portal/admin/modules` with the session and its CSRF token). Until the old portal pages are removed, the Bearer route below works too:
+A portal admin registers each module once, on the portal page **Модули** (`/app/admin/modules`). The page sends, with the admin's session and its CSRF token:
 
 ```
-POST <portal>/api/v1/sso/clients
-Authorization: Bearer <an admin's portal token>
+POST <portal>/api/v1/portal/admin/modules
+X-CSRF-Token: <the session's token>
 Content-Type: application/json
 
 {
@@ -402,12 +402,13 @@ Response `201`:
   "clientId": "library",
   "clientSecret": "<43 random characters>",
   "redirectUris": ["https://library.tu-sofia.bg/auth/callback"],
-  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"]
+  "postLogoutRedirectUris": ["https://library.tu-sofia.bg/logged-out"],
+  "directory": false
 }
 ```
 
 - **The secret is shown once.** The portal stores only its hash (Argon2id; secrets from before are BCrypt). Send it to the module team over a private channel.
-- `clientId`: 2 to 63 lower-case letters, digits or dashes, not starting with a dash. Registering the same one twice answers `409`. Ids starting with `unicloud-` are reserved (`unicloud-api` is the audience of the portal's own tokens), and so are ids made only of digits, which look like a user's `sub`.
+- `clientId`: 2 to 63 lower-case letters, digits or dashes, not starting with a dash. Registering the same one twice answers `409`. Ids starting with `unicloud-` are reserved (the portal's own audiences, such as `unicloud-directory`), and so are ids made only of digits, which look like a user's `sub`.
 - Every URL must follow the environment's rule (see [Callback URLs per environment](#callback-urls-per-environment)). In production that means `https` on a listed host; the answer is `400` otherwise. Everywhere: no fragments, user info, `*` or `,`.
 - Module teams do not need an admin to develop: on staging they register themselves (see [Testing a module against staging](#testing-a-module-against-staging)).
 - Only the `ADMIN` role may register. Anyone else gets `403`. Every registration is logged with the admin's user id.
@@ -418,7 +419,7 @@ Response `201`:
 For the portal team. The plan behind it is in [openspec/changes/complete-java-portal](../openspec/changes/complete-java-portal/design.md); the exact wire behaviour is in [sso-wire-contract.md](sso-wire-contract.md).
 
 - **Library.** Spring's OAuth 2.0 Authorization Server, part of Spring Security 7 (`spring-boot-starter-security-oauth2-authorization-server`). Configuration: `sso/config/SsoAuthorizationServerConfig.java`. Its defaults are narrowed to what this guide promises: discovery lists only what is served, unused endpoints answer 404, an unknown module gets a plain 400, `openid` is required, access tokens carry `typ: at+jwt` and `client_id`.
-- **Filter chains, in order.** 0: the directory (`directory/config/DirectorySecurityConfig.java`). 1: single sign-on. 2: the cookie session for the portal UI: `/login`, `/password`, `/logout`, the app at `/app`, its JSON API under `/api/v1/portal`, `/ui/v1` (`accounts/config/PortalSessionSecurityConfig.java`). 3: the old portal API and pages with the portal's own JWT, until the app replaces them.
+- **Filter chains, in order.** 0: the directory (`directory/config/DirectorySecurityConfig.java`). 1: single sign-on. 2: the cookie session for the portal UI: `/login`, `/password`, `/logout`, the app at `/app`, its JSON API under `/api/v1/portal`, `/ui/v1` (`accounts/config/PortalSessionSecurityConfig.java`). 3: the public routes, `/health`, `/`, `/api-docs`, `/openapi.json` and the staging tools; everything else answers 404 (`config/PublicRoutesSecurityConfig.java`). The portal has no JWT login of its own any more: its old login, static pages and REST routes were removed once the app replaced them.
 - **One session.** The portal UI and single sign-on share one session in the cookie `__Host-UNICLOUD_SSO` (`HttpOnly; Secure; SameSite=Lax`), stored by Spring Session in the database, so every replica sees it ([ADR 0003](adr/0003-one-cookie-session.md)). It ends after 30 minutes idle, and `SsoSessionMaxAgeFilter` ends it 8 hours after the password (`app.sso.session-max-age`). The `__Host-` prefix stops a sibling subdomain from planting the cookie. Every change through the UI carries the session's CSRF token (`X-CSRF-Token`, or the form field `csrf`).
 - **Sign-in.** `accounts/web/SignInController.java`: one message for a wrong email, a wrong password and a disabled user; the same password work for an unknown email; 10 failures in 15 minutes lock the email (`SignInThrottle`); a new session id; then the first-password change if due, else the waiting `/oauth2/authorize`, else a valid `next`, else the app. Passwords are Argon2id, BCrypt hashes from before are replaced at the next sign-in, and at most 4 hashes run at once per replica (`PortalPasswordEncoder`).
 - **The user on every request.** `PortalUserFilter`, in the portal and SSO chains, reads the user from the database: a disabled user is signed out at once, permission changes count at the next request, and a user who must change the first password gets only the password page (a module's login waits for it).

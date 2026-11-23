@@ -15,8 +15,6 @@ import java.util.Map;
  * fork's {@code enrollment.rs}, on this portal's way of counting places (PR #14): the offering's
  * row is locked ({@code SELECT ... FOR UPDATE}) and the ENROLLED rows are counted under READ
  * COMMITTED, so the rush at 08:00 cannot oversell, on MySQL and on PostgreSQL alike.
- *
- * <p>The old service.EnrollmentService serves the old pages and goes with them.
  */
 @Service
 public class EnrollmentRules {
