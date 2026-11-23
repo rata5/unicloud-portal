@@ -31,7 +31,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [ ] 2.2 Chain 1's entry point to `/login?sso=1`; after sign-in, continue the saved `/oauth2/authorize`
 - [ ] 2.3 `PortalUser` loaded per request; disabled users anonymous at once
 - [ ] 2.4 `DelegatingPasswordEncoder` with Argon2id; BCrypt hashes verify and are upgraded at sign-in; same timing for unknown emails
-- [ ] 2.5 `must_change_password` (V6) and `/password`; held back for pages, the API and `/oauth2/authorize`
+- [ ] 2.5 `must_change_password` (column added by V6 in group 7) and `/password`; held back for pages, the API and `/oauth2/authorize`
 - [ ] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404
 - [ ] 2.7 Staging routes answer 404 without the profile
 - [ ] 2.8 `SsoFlowTests` and the other suites sign in through `/login`; new session, CSRF and first-password tests
@@ -73,11 +73,11 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
 
 ## 7. Operations
-- [ ] 7.1 Structured JSON request logs with route group, status, duration and replica, and no secrets (Spring Boot structured logging)
-- [ ] 7.2 Start-up refuses to run without the signing key, naming the missing variable
+- [x] 7.1 Structured JSON request logs with route group, status, duration and replica, and no secrets (Spring Boot structured logging, ECS; on with the staging profile and in production through `LOGGING_STRUCTURED_FORMAT_CONSOLE`)
+- [x] 7.2 Start-up refuses to run without the signing key, naming the missing variable
 - [x] 7.3 Security headers on every response (CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`)
 - [x] 7.4 `/openapi.json` and Swagger UI at `/api-docs` (springdoc, as in the reverted PR #12), plus the SSO endpoints the library serves
-- [ ] 7.5 Start-up data: the first admin from `APP_BOOTSTRAP_ADMIN_*` in production; demo data with `APP_DEMO_PASSWORD` on staging and in development
+- [x] 7.5 Start-up data: the first admin from `APP_BOOTSTRAP_ADMIN_*` when no admin can sign in; demo data with `APP_DEMO_PASSWORD` only with the `staging` or `dev` profile. V6 adds `must_change_password`; the first admin has it set, and group 2 makes the sign-in honour it
 - [ ] 7.6 Spike test (`loadtest/`) against production, results in `docs/slo.md`
 
 ## 8. Docs and release

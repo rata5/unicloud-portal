@@ -171,7 +171,8 @@ Same routes and shapes as today, plus: `faculty` on users, `DEAN`, 11 permission
 | `app.sso.allowed-callback-hosts` (`APP_SSO_ALLOWED_CALLBACK_HOSTS`) | Production host list, as today |
 | `app.current-semester` (`APP_CURRENT_SEMESTER`) | New. The semester that accepts enrollment, for example `2026-27-W` |
 | `APP_BOOTSTRAP_ADMIN_EMAIL`, `APP_BOOTSTRAP_ADMIN_PASSWORD` | New. The first admin in production, created once |
-| `APP_DEMO_PASSWORD` | New. Demo data on staging and in development; ignored in production |
+| `APP_DEMO_PASSWORD` | New. Demo data with the `staging` or `dev` profile; ignored otherwise, so never in production |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | `ecs` in production (deploy.yml); the `staging` profile sets it too. JSON log lines for the request log |
 | `spring.datasource.hikari.maximum-pool-size` | 15, as today (10 replicas stay under MySQL B1ms's 171) |
 | `GIT_SHA`, `HOSTNAME` | `/health` and `X-Served-By`, as today |
 

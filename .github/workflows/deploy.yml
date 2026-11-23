@@ -175,9 +175,12 @@ jobs:
           az extension add --name containerapp --upgrade --only-show-errors
           # The app reads app.jwt.private-key / app.jwt.public-key; Spring maps these variables to
           # them and accepts the PEM text directly, so no key file is needed in the image.
+          # LOGGING_STRUCTURED_FORMAT_CONSOLE: one JSON object per log line, for the request log
+          # that docs/slo.md measures (RequestLogFilter)
           ENV_VARS=(DATABASE_URL=secretref:db-url
                     APP_JWT_PRIVATE_KEY=secretref:jwt-private-key
-                    APP_JWT_PUBLIC_KEY=secretref:jwt-public-key)
+                    APP_JWT_PUBLIC_KEY=secretref:jwt-public-key
+                    LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs)
           if az containerapp show -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" > /dev/null 2>&1; then
             # Single sign-on tokens name the portal's public address as their issuer
             # (docs/sso.md). A brand-new app has no address yet; until the next deploy the app
