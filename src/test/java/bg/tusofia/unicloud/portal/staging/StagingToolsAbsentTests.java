@@ -52,24 +52,25 @@ class StagingToolsAbsentTests {
     }
 
     @Test
-    void anonymousCallersAreRefused() throws Exception {
-        mockMvc.perform(get("/staging")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/v1/staging/users")).andExpect(status().isUnauthorized());
+    void anonymousCallersFindNothing() throws Exception {
+        mockMvc.perform(get("/staging")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/staging/staging.js")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/staging/users")).andExpect(status().isNotFound());
         mockMvc.perform(post("/api/v1/staging/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\": \"x@tu-sofia.bg\", \"password\": \"long-enough\", "
                                 + "\"firstName\": \"X\", \"lastName\": \"Y\", \"role\": \"ADMIN\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void evenAnAdminIsRefused() throws Exception {
+    void evenAnAdminFindsNothing() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         User admin = User.reconstitute(9L, "admin@tu-sofia.bg", "hash", "Admin", "User",
                 "ADMIN", null, true, now, now);
 
         mockMvc.perform(get("/api/v1/staging/roles")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenIssuer.issue(admin).value()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
     }
 }

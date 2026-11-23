@@ -33,13 +33,13 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] 2.4 `DelegatingPasswordEncoder` with Argon2id; BCrypt hashes verify and are upgraded at sign-in; same timing for unknown emails
 - [x] 2.5 `must_change_password` (column added by V6 in group 7) and `/password`; held back for pages, the API and `/oauth2/authorize`
 - [ ] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404. Only once the app is served and checked against the Java portal (react-hypermedia-ui task 4.3); until then the JWT login and the cookie session work side by side
-- [ ] 2.7 Staging routes answer 404 without the profile
+- [x] 2.7 Staging routes answer 404 without the profile
 - [ ] 2.8 `SsoFlowTests` and the other suites sign in through `/login`; new session, CSRF and first-password tests (new tests done: `SignInTests`, `SignInThrottleTests`, `PortalPasswordEncoderTests`; `SsoFlowTests` still uses the old bridge until 2.6)
 - [ ] 2.9 Lands together with group 6's sign-in page and app shell, so there is always a working sign-in
 - [x] 2.10 Sign-in throttling: 10 failures in 15 minutes lock the email for 15 minutes
 - [x] 2.11 At most 4 password hashes at once per replica
-- [ ] 2.12 A password change revokes the user's module logins; the new password must differ
-- [ ] 2.13 Sign-out revokes the module logins made through that session
+- [x] 2.12 A password change revokes the user's module logins; the new password must differ
+- [x] 2.13 Sign-out revokes the module logins made through that session
 
 ## 3. Accounts, catalogue and enrollment rules
 - [x] 3.1 Inspector creates students (`STUDENT_CREATE`), admin creates staff (`STAFF_CREATE`), only an admin creates an admin; first password set by the creator; Bulgarian messages for duplicates
@@ -60,7 +60,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] 4.6 `docs/sso-wire-contract.md`: mark the decided items
 - [x] 4.7 `typ: at+jwt` on access tokens; no `typ` on ID tokens
 - [x] 4.8 Reserved module ids: every `unicloud-*` id and ids made only of digits
-- [ ] 4.9 `/connect/logout` without a valid `id_token_hint` asks for a confirmation with a CSRF-protected form (needs group 2's session, CSRF and Thymeleaf; done with it)
+- [x] 4.9 `/connect/logout` without a valid `id_token_hint` asks for a confirmation with a CSRF-protected form (needs group 2's session, CSRF and Thymeleaf; done with it)
 
 ## 5. Directory
 - [x] 5.1 `client_credentials` with the `directory` scope; validator for `invalid_scope`; `aud=unicloud-directory`; `unicloud-directory` reserved

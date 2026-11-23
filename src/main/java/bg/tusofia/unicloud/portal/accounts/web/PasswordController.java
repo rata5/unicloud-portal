@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.accounts.web;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.ModuleLogins;
 import bg.tusofia.unicloud.portal.accounts.application.PortalUser;
 import bg.tusofia.unicloud.portal.user.domain.User;
 import bg.tusofia.unicloud.portal.user.domain.UserRepository;
@@ -34,11 +35,25 @@ public class PasswordController {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final PortalSession portalSession;
+    private final ModuleLogins moduleLogins;
 
-    public PasswordController(UserRepository users, PasswordEncoder passwordEncoder, PortalSession portalSession) {
+    public PasswordController(UserRepository users, PasswordEncoder passwordEncoder, PortalSession portalSession,
+                              ModuleLogins moduleLogins) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.portalSession = portalSession;
+        this.moduleLogins = moduleLogins;
+    }
+
+    /** The logout confirmation: a module asked to sign the user out without proving it (sso-provider spec). */
+    @GetMapping("/logout")
+    public String confirmLogout(HttpServletRequest request, Model model) {
+        if (PortalUser.current(request) == null) {
+            return "redirect:/login";
+        }
+        model.addAttribute("csrf", SignInController.csrfToken(request));
+        model.addAttribute("name", PortalUser.current(request).name());
+        return "logout";
     }
 
     @GetMapping("/password")
@@ -75,6 +90,8 @@ public class PasswordController {
 
         user.changePassword(passwordEncoder.encode(newPassword));
         users.save(user);
+        // Tokens modules got before the change stop working at /userinfo
+        moduleLogins.revokeAllOf(user.getId());
         log.info("User {} changed the password", user.getId());
         return "redirect:" + portalSession.afterSignIn(request, response, null, false);
     }

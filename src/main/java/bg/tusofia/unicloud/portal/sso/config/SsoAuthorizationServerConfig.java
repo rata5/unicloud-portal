@@ -1,5 +1,9 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.ModuleLogins;
+import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import bg.tusofia.unicloud.portal.accounts.web.PortalUserFilter;
 import bg.tusofia.unicloud.portal.user.domain.UserRepository;
 import bg.tusofia.unicloud.portal.config.SecurityHeaders;
@@ -113,6 +117,7 @@ public class SsoAuthorizationServerConfig {
             SsoCallbackPolicy callbackPolicy,
             AuthorizationServerSettings settings,
             UserRepository users,
+            ModuleLogins moduleLogins,
             @Value("${app.sso.session-max-age}") Duration sessionMaxAge) throws Exception {
 
         http
@@ -138,13 +143,19 @@ public class SsoAuthorizationServerConfig {
                                             .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)))
                             .userInfoEndpoint(userInfo -> userInfo
                                     .userInfoMapper(context -> userInfo(context, userClaims)))
-                            .logoutEndpoint(logout -> logout.authenticationProviders(providers ->
-                                    providers.forEach(provider -> {
-                                        if (provider instanceof OidcLogoutAuthenticationProvider oidcLogout) {
-                                            oidcLogout.setAuthenticationValidator(
-                                                    SsoCallbackValidators.logout(callbackPolicy));
-                                        }
-                                    }))));
+                            .logoutEndpoint(logout -> logout
+                                    .authenticationProviders(providers ->
+                                            providers.forEach(provider -> {
+                                                if (provider instanceof OidcLogoutAuthenticationProvider oidcLogout) {
+                                                    oidcLogout.setAuthenticationValidator(
+                                                            SsoCallbackValidators.logout(callbackPolicy));
+                                                }
+                                            }))
+                                    // A module's logout also ends the module logins made in this browser
+                                    .logoutResponseHandler(endModuleLoginsThen(new OidcLogoutAuthenticationSuccessHandler(), moduleLogins))
+                                    // Without a valid id_token_hint nobody proves the logout was asked for:
+                                    // a signed-in user confirms it on /logout instead (sso-provider spec)
+                                    .errorResponseHandler(confirmWithoutAHint())));
                 })
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .headers(SecurityHeaders.everywhere())
@@ -167,6 +178,28 @@ public class SsoAuthorizationServerConfig {
                 .addFilterBefore(notServed(settings), SecurityContextHolderFilter.class);
 
         return http.build();
+    }
+
+    private static AuthenticationSuccessHandler endModuleLoginsThen(AuthenticationSuccessHandler logout,
+                                                                    ModuleLogins moduleLogins) {
+        return (request, response, authentication) -> {
+            moduleLogins.revokeThoseOf(request.getSession(false));
+            logout.onAuthenticationSuccess(request, response, authentication);
+        };
+    }
+
+    /** A logout request that names no valid ID token: the confirmation page for a signed-in browser. */
+    private static AuthenticationFailureHandler confirmWithoutAHint() {
+        return (request, response, exception) -> {
+            boolean aboutTheHint = exception instanceof OAuth2AuthenticationException oauth
+                    && (String.valueOf(oauth.getError().getDescription()).contains("id_token_hint")
+                        || OAuth2ErrorCodes.INVALID_TOKEN.equals(oauth.getError().getErrorCode()));
+            if (aboutTheHint && request.getSession(false) != null) {
+                response.sendRedirect("/logout");
+                return;
+            }
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+        };
     }
 
     private static void onlyWhatIsServed(Map<String, Object> document) {
@@ -237,9 +270,10 @@ public class SsoAuthorizationServerConfig {
     @Bean
     OAuth2AuthorizationService authorizationService(
             JdbcOperations jdbcOperations,
-            RegisteredClientRepository registeredClientRepository) {
+            RegisteredClientRepository registeredClientRepository,
+            ModuleLogins moduleLogins) {
 
-        return new SingleUseCodeAuthorizationService(jdbcOperations, registeredClientRepository);
+        return new SingleUseCodeAuthorizationService(jdbcOperations, registeredClientRepository, moduleLogins);
     }
 
     @Bean

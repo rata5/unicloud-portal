@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.filter.RequestContextFilter;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -75,8 +76,10 @@ class SignInTests {
 
     @BeforeEach
     void setUp() {
+        // As in the real server: Spring Boot's RequestContextFilter runs before Spring Security, so
+        // the authorization store sees the browser's session (ModuleLogins.remember)
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
-                .addFilters(sessionRepositoryFilter, springSecurityFilterChain)
+                .addFilters(sessionRepositoryFilter, new RequestContextFilter(), springSecurityFilterChain)
                 .build();
     }
 
@@ -282,7 +285,73 @@ class SignInTests {
                 .startsWith(module.redirectUri() + "?code=");
     }
 
+    @Test
+    void aModulesTokenStopsWhenTheUserSignsOut() throws Exception {
+        String email = newUser();
+        Module module = newModule();
+        Browser browser = new Browser();
+        String token = moduleToken(browser, module, email);
+        assertThat(userinfo(token)).isEqualTo(200);
+
+        browser.perform(post("/logout").param("csrf", browser.csrf("/password")));
+        assertThat(userinfo(token)).as("the login made in that browser ended with it").isEqualTo(401);
+    }
+
+    @Test
+    void aModulesTokenStopsWhenThePasswordChanges() throws Exception {
+        String email = newUser();
+        Module module = newModule();
+        String token = moduleToken(new Browser(), module, email);
+        assertThat(userinfo(token)).isEqualTo(200);
+
+        // In another browser: the user changes the password
+        Browser other = signedIn(email);
+        other.perform(post("/password").param("csrf", other.csrf("/password")).param("password", PASSWORD)
+                .param("new_password", "new-password-1").param("new_password2", "new-password-1"));
+        assertThat(userinfo(token)).isEqualTo(401);
+    }
+
+    @Test
+    void aLogoutWithoutAnIdTokenAsksFirst() throws Exception {
+        Browser browser = signedIn(newUser());
+
+        assertThat(browser.perform(get("/connect/logout")).getResponse().getRedirectedUrl()).endsWith("/logout");
+        String page = browser.perform(get("/logout")).getResponse().getContentAsString();
+        assertThat(page).contains("Модул на UniCloud иска да ви отпише");
+        assertThat(browser.perform(get("/password")).getResponse().getStatus()).as("nothing ended yet").isEqualTo(200);
+
+        // Only the confirmation, with the session's token, signs out
+        assertThat(browser.perform(post("/logout")).getResponse().getStatus()).isEqualTo(403);
+        assertThat(browser.perform(post("/logout").param("csrf", browser.csrf("/password")))
+                .getResponse().getRedirectedUrl()).isEqualTo("/login");
+        assertThat(browser.perform(get("/password")).getResponse().getRedirectedUrl()).endsWith("/login");
+    }
+
     // ---- helpers ----
+
+    /** Signs the browser in through a module's login and returns the module's access token. */
+    private String moduleToken(Browser browser, Module module, String email) throws Exception {
+        browser.perform(authorize(module));
+        String resume = browser.perform(signIn(browser.csrf(), email, PASSWORD, null)).getResponse().getRedirectedUrl();
+        String callback = browser.perform(get(java.net.URI.create(resume)).accept(MediaType.TEXT_HTML))
+                .getResponse().getRedirectedUrl();
+        String code = UriComponentsBuilder.fromUriString(callback).build().getQueryParams().getFirst("code");
+        JsonNode tokens = json.readTree(mockMvc.perform(post("/oauth2/token")
+                        .header(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(
+                                (module.clientId() + ":" + module.secret()).getBytes(StandardCharsets.UTF_8)))
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("grant_type", "authorization_code")
+                        .param("code", code)
+                        .param("redirect_uri", module.redirectUri())
+                        .param("code_verifier", module.verifier()))
+                .andReturn().getResponse().getContentAsString());
+        return tokens.get("access_token").asString();
+    }
+
+    private int userinfo(String accessToken) throws Exception {
+        return mockMvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andReturn().getResponse().getStatus();
+    }
 
     /** One browser: keeps the session cookie between requests, as a real one does. */
     private final class Browser {

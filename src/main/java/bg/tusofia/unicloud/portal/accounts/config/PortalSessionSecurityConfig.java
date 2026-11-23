@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.accounts.config;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.ModuleLogins;
 import bg.tusofia.unicloud.portal.accounts.web.PortalApiErrors;
 import bg.tusofia.unicloud.portal.accounts.web.PortalUserFilter;
 import bg.tusofia.unicloud.portal.config.SecurityHeaders;
@@ -56,6 +57,7 @@ public class PortalSessionSecurityConfig {
             HttpSecurity http,
             CsrfTokenRepository portalCsrfTokens,
             UserRepository users,
+            ModuleLogins moduleLogins,
             @Value("${app.sso.session-max-age}") Duration sessionMaxAge) throws Exception {
 
         PathPatternRequestMatcher.Builder path = PathPatternRequestMatcher.withDefaults();
@@ -74,6 +76,8 @@ public class PortalSessionSecurityConfig {
                 // Ends the session for the whole browser, which also ends single sign-on
                 .logout(logout -> logout
                         .logoutRequestMatcher(path.matcher(org.springframework.http.HttpMethod.POST, "/logout"))
+                        .addLogoutHandler((request, response, authentication) ->
+                                moduleLogins.revokeThoseOf(request.getSession(false)))
                         .logoutSuccessUrl("/login")
                         .invalidateHttpSession(true)
                         .clearAuthentication(true))

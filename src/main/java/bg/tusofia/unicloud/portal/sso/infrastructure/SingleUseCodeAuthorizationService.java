@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.sso.infrastructure;
 
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -28,11 +29,23 @@ public class SingleUseCodeAuthorizationService extends JdbcOAuth2AuthorizationSe
     private static final String CLAIM_CODE =
             "UPDATE oauth2_authorization SET code_redeemed = TRUE WHERE id = ? AND code_redeemed = FALSE";
 
+    private final ModuleLogins moduleLogins;
+
     public SingleUseCodeAuthorizationService(
             JdbcOperations jdbcOperations,
             RegisteredClientRepository registeredClientRepository) {
 
+        this(jdbcOperations, registeredClientRepository, null);
+    }
+
+    /** With {@code moduleLogins}, a user's module login is remembered in the browser's session. */
+    public SingleUseCodeAuthorizationService(
+            JdbcOperations jdbcOperations,
+            RegisteredClientRepository registeredClientRepository,
+            ModuleLogins moduleLogins) {
+
         super(jdbcOperations, registeredClientRepository);
+        this.moduleLogins = moduleLogins;
     }
 
     @Override
@@ -46,6 +59,10 @@ public class SingleUseCodeAuthorizationService extends JdbcOAuth2AuthorizationSe
                     null));
         }
         super.save(authorization);
+        if (moduleLogins != null && AuthorizationGrantType.AUTHORIZATION_CODE.equals(authorization.getAuthorizationGrantType())) {
+            // At /oauth2/authorize this runs in the browser's request; at /oauth2/token there is no session
+            moduleLogins.remember(authorization.getId());
+        }
     }
 
     /**

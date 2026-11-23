@@ -58,7 +58,13 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 ### Step 3 done (2026-11-23)
 - `/app` and `/ui/v1` served (`AppHostingController`, ported from `spa.rs`); a browser at `/` goes to `/app/`. Docker builds `web/` in a Node stage; CI has a `web` job.
 - HAL-FORMS `_links` and `_templates` on every answer of the app's API (`Hypermedia`), as in the UI design: navigation links on `/me`, forms for list actions on `/me`, `enroll`, `cancel`, `reject`, `setStatus`, `toggle`, `createCourse`, `createOffering`, each only while it would succeed (the enroll form uses the same rule as the handler, `EnrollmentRules.refusal`).
-- Tests: `AppHostingTests`, and in `PortalApiTests` the links and forms per role and per state, and that every form targets an operation of the pinned contract; the full suite has 133 tests.
+- Tests: `AppHostingTests`, and in `PortalApiTests` the links and forms per role and per state, and that every form targets an operation of the pinned contract; the full suite has 129 tests.
+
+### Step 4 done (2026-11-23)
+- Sign-out (the portal's, and a module's `/connect/logout`) ends the module logins made in that browser; a password change ends all of the user's (`ModuleLogins`). Their access tokens get 401 at `/userinfo`.
+- `/connect/logout` without a valid `id_token_hint`: a signed-in browser confirms on `/logout`; nothing ends before the CSRF-protected POST.
+- Without the staging profile, the staging paths answer 404 to everyone (they answered 401 or 403).
+- The full suite has 132 tests.
 
 ## Next
 

@@ -8,7 +8,7 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 - [ ] 1.3 ADR 0004 accepted
 
 ## 2. Backend
-- [ ] 2.1 `spring-boot-starter-thymeleaf`; sign-in, password change, logout confirmation and error pages in Bulgarian, with the `csrf` form field
+- [x] 2.1 `spring-boot-starter-thymeleaf`; sign-in, password change, logout confirmation and error pages in Bulgarian, with the `csrf` form field (error pages are still Spring's default)
 - [x] 2.2 `portalapi`: every operation of the contract, with its fields and status codes (session, profiles, catalogue, enrollment, teaching, dean, inspection, admin)
 - [x] 2.3 `Hypermedia` helper; `_links` and `_templates` as in design.md, each from the same rule the handler enforces
 - [x] 2.4 JSON errors (`{error, message}`), JSON CSRF failures, `no-store` on module registration and errors
