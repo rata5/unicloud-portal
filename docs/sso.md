@@ -238,9 +238,11 @@ GET <portal>/connect/logout
     &state=<optional>
 ```
 
-The portal ends its SSO session and redirects to `post_logout_redirect_uri?state=...`. The logout URL must be registered, like the callback. The portal keeps what it needs for this for 24 hours after the login.
+The portal ends its SSO session and redirects to `post_logout_redirect_uri?state=...`. The logout URL must be registered, like the callback. The portal keeps what it needs for this for 24 hours after the login. Without a valid `id_token_hint`, the portal does not end anything by itself: it asks the signed-in user to confirm on its own page.
 
-Logging out of the portal itself (the "Изход" button) also ends the SSO session. Losing the portal token in one tab (it expired, or the tab is new) does not: the token lives per tab, the SSO session per browser.
+Logging out of the portal itself (the "Изход" button) also ends the SSO session: the portal and single sign-on share one session per browser.
+
+Both kinds of logout also end the module logins made in that browser: their access tokens stop working at `/userinfo`. So does a password change, for every login of that user.
 
 Not done: single logout, where logging out of one module also ends the user's session in every other module.
 
@@ -367,13 +369,15 @@ Configure each environment separately: the issuer, client id and secret all diff
 | `/userinfo` answers 401 | Send the access token from the code exchange, not the ID token or a client-credentials token. It expires after 30 minutes |
 | The directory API answers 401 | Use a token from `grant_type=client_credentials&scope=directory`, not one from a user login. It expires after 30 minutes |
 | The token request answers `invalid_scope` for `client_credentials` | The module has no directory grant, or asked for a scope other than `directory` |
-| The user lands on the portal's profile page instead of your module | The login took too long and the portal forgot the waiting request. Start the login from your module again |
+| The user lands on the portal's app instead of your module | The login took too long and the portal forgot the waiting request. Start the login from your module again |
+| The user lands on the portal's password page | A user created by an inspector or an admin chooses a new password at the first sign-in. After that, the module's login goes on by itself |
+| The sign-in page says to try again in 15 minutes | 10 failed sign-ins for that email within 15 minutes lock it for 15 minutes |
 | A request to staging takes very long, or times out | Staging runs on Render's free plan, which stops the service after 15 minutes without requests. The next request starts it again, and the portal takes 1 to 3 minutes to boot. Until then requests wait, and some time out. That includes your backend's calls to `/oauth2/token`, `/oauth2/jwks` and the discovery document, not just the browser. Open the staging address in a browser first, wait until it answers, then retry. If your OIDC library gives up during the boot, raise its timeout for staging or retry the request |
 | Staging no longer knows your module (a plain 400 page) or your test users | Staging's free database is replaced every 30 days, and everything in it is lost: modules, secrets and users. Register your module and create your users again on the staging page |
 
 ## Registering a module (portal admins)
 
-A portal admin registers each module once:
+A portal admin registers each module once, on the portal page **Модули** (`/app/admin/modules`; the app calls `POST /api/v1/portal/admin/modules` with the session and its CSRF token). Until the old portal pages are removed, the Bearer route below works too:
 
 ```
 POST <portal>/api/v1/sso/clients
@@ -402,7 +406,7 @@ Response `201`:
 }
 ```
 
-- **The secret is shown once.** The portal stores only its BCrypt hash. Send it to the module team over a private channel.
+- **The secret is shown once.** The portal stores only its hash (Argon2id; secrets from before are BCrypt). Send it to the module team over a private channel.
 - `clientId`: 2 to 63 lower-case letters, digits or dashes, not starting with a dash. Registering the same one twice answers `409`. Ids starting with `unicloud-` are reserved (`unicloud-api` is the audience of the portal's own tokens), and so are ids made only of digits, which look like a user's `sub`.
 - Every URL must follow the environment's rule (see [Callback URLs per environment](#callback-urls-per-environment)). In production that means `https` on a listed host; the answer is `400` otherwise. Everywhere: no fragments, user info, `*` or `,`.
 - Module teams do not need an admin to develop: on staging they register themselves (see [Testing a module against staging](#testing-a-module-against-staging)).
@@ -411,27 +415,29 @@ Response `201`:
 
 ## How the portal does it
 
-For the portal team.
+For the portal team. The plan behind it is in [openspec/changes/complete-java-portal](../openspec/changes/complete-java-portal/design.md); the exact wire behaviour is in [sso-wire-contract.md](sso-wire-contract.md).
 
-- **Library.** Spring's OAuth 2.0 Authorization Server, part of Spring Security 7 (`spring-boot-starter-security-oauth2-authorization-server`). Configuration: `sso/config/SsoAuthorizationServerConfig.java`. Its filter chain runs before the API chain and matches only the endpoints above.
-- **The SSO session.** `/oauth2/authorize` is a browser redirect and cannot carry the portal's Bearer token, which lives in the page's `sessionStorage`. So the SSO endpoints use a session cookie, `__Host-UNICLOUD_SSO` (`HttpOnly; Secure; SameSite=Lax`). It ends after 30 minutes idle, and `SsoSessionMaxAgeFilter` ends it 8 hours after the password (`app.sso.session-max-age`), so a browser left logged in on a shared lab PC does not stay logged in for good. Spring Session stores it in the database, so every replica sees it. The `__Host-` prefix stops a sibling subdomain from planting the cookie.
-- **Getting from a Bearer login to the session.** A browser without a session lands on `/login.html?sso=1`. After the normal login, the page calls `POST /api/v1/auth/sso-session` with its Bearer token (`sso/controller/SsoSessionController.java`). That creates the session with a new id and returns the saved `/oauth2/authorize` path, and the page opens it. The endpoint needs the Bearer header, so another site cannot trigger it with the user's cookie. It only ever returns an `/oauth2/authorize` path, so it cannot become an open redirect. If the user is already logged in to the portal, the page does this without asking for the password.
-- **The API stays stateless.** The API chain never reads the session, so the cookie cannot authenticate `/api/v1/...` calls. Portal tokens have `aud=unicloud-api`; module tokens have `aud=<client_id>` and the portal's URL as `iss`. Each side refuses the other's. In the SSO chain only `/userinfo` reads a Bearer token; `/oauth2/authorize` answers only to the SSO session.
+- **Library.** Spring's OAuth 2.0 Authorization Server, part of Spring Security 7 (`spring-boot-starter-security-oauth2-authorization-server`). Configuration: `sso/config/SsoAuthorizationServerConfig.java`. Its defaults are narrowed to what this guide promises: discovery lists only what is served, unused endpoints answer 404, an unknown module gets a plain 400, `openid` is required, access tokens carry `typ: at+jwt` and `client_id`.
+- **Filter chains, in order.** 0: the directory (`directory/config/DirectorySecurityConfig.java`). 1: single sign-on. 2: the cookie session for the portal UI: `/login`, `/password`, `/logout`, the app at `/app`, its JSON API under `/api/v1/portal`, `/ui/v1` (`accounts/config/PortalSessionSecurityConfig.java`). 3: the old portal API and pages with the portal's own JWT, until the app replaces them.
+- **One session.** The portal UI and single sign-on share one session in the cookie `__Host-UNICLOUD_SSO` (`HttpOnly; Secure; SameSite=Lax`), stored by Spring Session in the database, so every replica sees it ([ADR 0003](adr/0003-one-cookie-session.md)). It ends after 30 minutes idle, and `SsoSessionMaxAgeFilter` ends it 8 hours after the password (`app.sso.session-max-age`). The `__Host-` prefix stops a sibling subdomain from planting the cookie. Every change through the UI carries the session's CSRF token (`X-CSRF-Token`, or the form field `csrf`).
+- **Sign-in.** `accounts/web/SignInController.java`: one message for a wrong email, a wrong password and a disabled user; the same password work for an unknown email; 10 failures in 15 minutes lock the email (`SignInThrottle`); a new session id; then the first-password change if due, else the waiting `/oauth2/authorize`, else a valid `next`, else the app. Passwords are Argon2id, BCrypt hashes from before are replaced at the next sign-in, and at most 4 hashes run at once per replica (`PortalPasswordEncoder`).
+- **The user on every request.** `PortalUserFilter`, in the portal and SSO chains, reads the user from the database: a disabled user is signed out at once, permission changes count at the next request, and a user who must change the first password gets only the password page (a module's login waits for it).
+- **Ending module logins.** `ModuleLogins` remembers, in the browser's session, the module logins made through it. Signing out (the portal's or `/connect/logout`) deletes them; a password change deletes all of the user's. `/userinfo` accepts only tokens the store still holds.
 - **Callback rule.** `SsoCallbackPolicy` holds the rule (`app.sso.callback-policy`, the host list). `SsoCallbackValidators` applies it to `/oauth2/authorize` and `/connect/logout`. In `any` mode it adds the request's callback to a copy of the module's registration for the library's check only, so the library's other checks (PKCE, scopes) still run. Nothing is saved.
-- **Staging tools.** The `staging` profile (`application-staging.properties`) sets the callback rule to `any` and turns on `staging/StagingToolsController.java` (routes and page) with `StagingUserService.java`. Without the profile the routes are never created, and `SecurityConfig` refuses `/staging` and `/api/v1/staging/**` to everyone, admins included. The page is `src/main/resources/staging/index.html`, served by the controller, not as a public static file.
+- **Staging tools.** The `staging` profile (`application-staging.properties`) sets the callback rule to `any` and turns on `staging/StagingToolsController.java` (routes and page) with `StagingUserService.java`. Without the profile the routes do not exist and answer 404 to everyone, admins included. The page is `src/main/resources/staging/index.html`, served by the controller, with its script in `staging.js`.
 - **Storage.** Flyway migration `V4__sso.sql` (and its PostgreSQL copy) adds the tables: `oauth2_registered_client`, `oauth2_authorization`, `oauth2_authorization_consent`, `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. `SsoAuthorizationCleanup` deletes logins older than a day, every hour.
 - **Single-use codes across replicas.** `SingleUseCodeAuthorizationService` adds a conditional `UPDATE` on `code_redeemed`, so only one exchange of a code can save its tokens. The losing exchange also revokes the winner's tokens.
-- **Directory.** `DirectoryTokenRequestConverter` turns `client_credentials` into a `directory` token, or `invalid_scope`. Those tokens have `aud=unicloud-directory`. `directory/config/DirectorySecurityConfig.java` is a third filter chain, only for `/api/v1/directory/**`: it accepts only such tokens, and only while the library's store still holds them as valid. `/userinfo` refuses them. The queries are in `directory/DirectoryQueries.java`, plain SQL for both databases.
-- **Keys.** The same RSA key pair as the portal's own tokens, published with its RFC 7638 thumbprint as `kid`.
+- **Directory.** `DirectoryTokenRequestConverter` turns `client_credentials` into a `directory` token, or `invalid_scope`. Those tokens have `aud=unicloud-directory`. The directory chain accepts only such tokens, and only while the library's store still holds them as valid. `/userinfo` refuses them. The queries are in `directory/DirectoryQueries.java`, plain SQL for both databases.
+- **Keys.** One RSA key pair (`APP_JWT_PRIVATE_KEY`, `APP_JWT_PUBLIC_KEY`), published with its RFC 7638 thumbprint as `kid`. Without it the portal refuses to start and says which variables to set.
 - **Issuer.** Production sets `APP_SSO_ISSUER` to `https://<the app's address>` on every deploy. Elsewhere the portal works it out from the request, using `X-Forwarded-Proto` from the proxy, and logs a warning at startup. On staging, set `APP_SSO_ISSUER` in Render to staging's `https` address, so the issuer never depends on the proxy.
 - **Time zones.** The library stores token times as `TIMESTAMP`. The MySQL connection uses `preserveInstants=true`, `connectionTimeZone=UTC` and `forceConnectionTimeZoneToSession=true` so they stay exact.
-- **Tests.** `sso/SsoFlowTests.java` runs the whole flow as a module would, through the real filters and database. `sso/SsoAuthorizationStoreTests.java` covers the single-use race and the cleanup. `sso/SsoSessionMaxAgeFilterTests.java` covers the 8-hour limit. `SsoCallbackPolicyTests` and `SsoAnyCallbackTests` cover the callback rules. `staging/StagingToolsTests.java` and `StagingToolsAbsentTests.java` cover the staging tools, on and off.
+- **Tests.** `sso/SsoFlowTests.java` runs the whole flow as a module would, through the real filters and database. `accounts/SignInTests.java` covers sign-in, the first password, sign-out and a module login through the sign-in page. `directory/DirectoryTests.java` covers the directory. `sso/SsoAuthorizationStoreTests.java` covers the single-use race and the cleanup. `sso/SsoSessionMaxAgeFilterTests.java` covers the 8-hour limit. `SsoCallbackPolicyTests` and `SsoAnyCallbackTests` cover the callback rules. `staging/StagingToolsTests.java` and `StagingToolsAbsentTests.java` cover the staging tools, on and off.
 
 ## Not done yet
 
-- **Listing, changing and deleting modules, and rotating a secret.** Today an admin can only register. Until there is an endpoint, a secret is replaced by deleting the row in `oauth2_registered_client` and registering again.
+- **Changing and deleting modules, and rotating a secret.** Today an admin can only register. Until there is a page for it, a secret is replaced by deleting the row in `oauth2_registered_client` and registering again.
 - **Signed client authentication (`private_key_jwt`).** A module would sign a short JWT with its own private key instead of sending a shared secret. Stronger, but more work for the module teams.
-- **Rate limiting.** Secrets are 256 random bits, so guessing one is not practical, but there is no limit on attempts at `/oauth2/token` (each one costs a BCrypt check), and every `GET /oauth2/authorize` without a session writes a session row. Best done at the ingress.
-- **Session reads on API calls.** A browser that has an SSO session sends its cookie with every API call too. The API ignores it for authentication, but Spring Session still reads that session row, and may update it, on those calls. This is extra load on the database at 08:00. A fix is to stop the API chain from touching the session.
+- **Rate limiting per IP.** Sign-in locks an email after 10 failures for 15 minutes (per replica). There is no limit per IP, and none on attempts at `/oauth2/token` (secrets are 256 random bits, so guessing one is not practical), and every `GET /oauth2/authorize` without a session writes a session row. Best done at the ingress.
+- **Session reads at 08:00.** Every call of the portal app reads its session row. The spike test measures what that costs the database.
 - **Single logout** across modules (see [Logout](#logout)).
 - **Key rotation.** Tokens already carry a `kid`, so a second key can be published next to the first when the time comes.

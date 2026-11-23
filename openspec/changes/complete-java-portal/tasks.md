@@ -81,7 +81,7 @@ See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
 - [ ] 7.6 Spike test (`loadtest/`) against production, results in `docs/slo.md`
 
 ## 8. Docs and release
-- [ ] 8.1 `docs/sso.md`: "How the portal does it" and "Not done yet" for the new design
-- [ ] 8.2 README: sign-in, the app, the new variables, the Node stage
+- [x] 8.1 `docs/sso.md`: "How the portal does it" and "Not done yet" for the new design
+- [x] 8.2 README: sign-in, the app, the new variables, the Node stage
 - [ ] 8.3 Tell module teams what changed. They do not register again
 - [ ] 8.4 In the release after this one: `students.specialty_id` and `courses.faculty_code` NOT NULL, drop `students.specialty` (V5 kept them nullable for replicas that predate it)

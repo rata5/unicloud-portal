@@ -66,10 +66,17 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - Without the staging profile, the staging paths answer 404 to everyone (they answered 401 or 403).
 - The full suite has 132 tests.
 
+### Step 5 done (2026-11-23)
+- `EnrollmentRulesRaceTests`: newcomers enroll while others cancel and the teacher rejects, at the same moment, three times; never oversold (task 3.7).
+- `docs/sso.md` ("Logout", "How the portal does it", "Not done yet", troubleshooting) and the README (sign-in, demo users, the app with `npm run dev`, the new settings, the `web` job) describe the new design (tasks 8.1, 8.2).
+- The full suite has 135 tests.
+
 ## Next
 
-- Group 8: `docs/sso.md` ("How the portal does it"), README.
-- After the switch-over: remove the JWT login and the old static pages (task 2.6), then V7-style clean-ups (task 8.4).
+- Check the React app against the Java backend in a browser (needs npm), and regenerate `schema.d.ts` from the pinned contract (task 4.1b).
+- Then the switch-over: remove the JWT login, the old static pages and the old REST routes (task 2.6), move `SsoFlowTests` to `/login` (2.8).
+- Tell the module teams what changed (task 8.3). They do not register again.
+- In the release after: the V5 clean-ups (task 8.4).
 
 ## Open questions and things others must do
 
