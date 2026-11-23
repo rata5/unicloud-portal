@@ -172,6 +172,9 @@ class SsoFlowTests {
                 .andExpect(jsonPath("$.faculty.code").value("FCST"));
         mockMvc.perform(get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized());
+        // ...and not the directory, which wants the module's own client-credentials token
+        mockMvc.perform(get("/api/v1/directory/users/" + STUDENT_ID).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
 
         // 6. The code works once only. Replaying it also revokes the tokens it gave, in case the
         //    first exchange was the attacker's
@@ -485,11 +488,12 @@ class SsoFlowTests {
                 "grant_types_supported", "id_token_signing_alg_values_supported", "issuer", "jwks_uri",
                 "response_types_supported", "scopes_supported", "subject_types_supported",
                 "token_endpoint", "token_endpoint_auth_methods_supported", "userinfo_endpoint");
-        assertThat(discovery.get("grant_types_supported").toString()).isEqualTo("[\"authorization_code\"]");
+        assertThat(discovery.get("grant_types_supported").toString())
+                .isEqualTo("[\"authorization_code\",\"client_credentials\"]");
         assertThat(discovery.get("token_endpoint_auth_methods_supported").toString()).isEqualTo("[\"client_secret_basic\"]");
         assertThat(discovery.get("code_challenge_methods_supported").toString()).isEqualTo("[\"S256\"]");
         assertThat(discovery.get("scopes_supported").toString())
-                .isEqualTo("[\"openid\",\"profile\",\"email\",\"unicloud\"]");
+                .isEqualTo("[\"openid\",\"profile\",\"email\",\"unicloud\",\"directory\"]");
         String issuer = discovery.get("issuer").asString();
         for (String endpoint : List.of("authorization_endpoint", "token_endpoint", "jwks_uri",
                 "userinfo_endpoint", "end_session_endpoint")) {
@@ -501,7 +505,8 @@ class SsoFlowTests {
                 .andReturn().getResponse().getContentAsString());
         assertThat(oauthMetadata.has("revocation_endpoint")).isFalse();
         assertThat(oauthMetadata.has("introspection_endpoint")).isFalse();
-        assertThat(oauthMetadata.get("grant_types_supported").toString()).isEqualTo("[\"authorization_code\"]");
+        assertThat(oauthMetadata.get("grant_types_supported").toString())
+                .isEqualTo("[\"authorization_code\",\"client_credentials\"]");
     }
 
     @Test

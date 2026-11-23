@@ -285,11 +285,12 @@ The Java portal keeps everything above that `sso.md` sections 1 to 10 promise to
 
 These items above are no longer Spring defaults. Each is pinned by a test:
 
-- **Discovery** lists only `issuer`, the five endpoints (authorize, token, JWKS, userinfo, logout), `response_types_supported` `["code"]`, `grant_types_supported` `["authorization_code"]`, `code_challenge_methods_supported` `["S256"]`, `subject_types_supported`, `id_token_signing_alg_values_supported`, `token_endpoint_auth_methods_supported` `["client_secret_basic"]` and `scopes_supported` `["openid", "profile", "email", "unicloud"]`. `/.well-known/oauth-authorization-server` is narrowed the same way (`SsoFlowTests.discoveryListsOnlyWhatThePortalServes`).
+- **Discovery** lists only `issuer`, the five endpoints (authorize, token, JWKS, userinfo, logout), `response_types_supported` `["code"]`, `grant_types_supported` `["authorization_code", "client_credentials"]`, `code_challenge_methods_supported` `["S256"]`, `subject_types_supported`, `id_token_signing_alg_values_supported`, `token_endpoint_auth_methods_supported` `["client_secret_basic"]` and `scopes_supported` `["openid", "profile", "email", "unicloud", "directory"]` (task group 5 added `client_credentials` and `directory`). `/.well-known/oauth-authorization-server` is narrowed the same way (`SsoFlowTests.discoveryListsOnlyWhatThePortalServes`).
 - **Revocation, introspection, device and pushed-authorization endpoints** answer 404 (`endpointsThePortalDoesNotOfferAnswer404`, `SsoPlainErrorPageTests`).
 - **An unknown module** at `/oauth2/authorize` gets a plain 400 with no redirect. The 401 with no body came from the servlet error dispatch to `/error`, which the API chain refused to anonymous callers (`SsoPlainErrorPageTests`).
 - **`openid` is required.** Without it the module's trusted callback gets `error=invalid_request` (`loginWithoutOpenidIsSentBackToTheModule`).
 - **Access tokens** carry the header `typ: at+jwt` and a `client_id` claim. ID tokens still carry no `typ` (`accessTokensAreTypedAndNameTheirModule`).
+- **`client_credentials`** works only for modules with the directory grant and only with scope `directory` (no scope means `directory`); anything else is 400 `invalid_scope`, not the library's `unauthorized_client`. The token has `aud=unicloud-directory` and works only at `/api/v1/directory/**` (`DirectoryTests`).
 - **Reserved client ids**: every `unicloud-*` id and ids made only of digits (`theApiAudienceCannotBeAClientId`).
 - **Still open**: `response_type` other than `code` with a trusted callback. The spec asks for a redirect with `unsupported_response_type`; the library answers before the callback is checked, so the portal gives a plain 400 (task 4.2b).
 

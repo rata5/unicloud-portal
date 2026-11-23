@@ -1,15 +1,8 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
-import org.springframework.security.oauth2.jwt.JwtTypeValidator;
-import com.nimbusds.jose.JOSEObjectType;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
-import com.nimbusds.jose.proc.JWSVerificationKeySelector;
-import com.nimbusds.jwt.proc.DefaultJWTProcessor;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
+import bg.tusofia.unicloud.portal.sso.infrastructure.DirectoryTokenRequestConverter;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -129,6 +122,9 @@ public class SsoAuthorizationServerConfig {
                                             SsoCallbackValidators.authorization(callbackPolicy));
                                 }
                             })));
+                    // client_credentials: for the directory API only (DirectoryTokenRequestConverter)
+                    server.tokenEndpoint(token -> token.accessTokenRequestConverters(converters ->
+                            converters.add(0, new DirectoryTokenRequestConverter())));
                     server.authorizationServerMetadataEndpoint(metadata -> metadata
                             .authorizationServerMetadataCustomizer(document -> document
                                     .claims(SsoAuthorizationServerConfig::onlyWhatIsServed)));
@@ -156,7 +152,7 @@ public class SsoAuthorizationServerConfig {
                 // token up in its own store, so a portal API token is refused there.
                 .oauth2ResourceServer(resource -> resource
                         .bearerTokenResolver(userInfoOnly())
-                        .jwt(jwt -> jwt.decoder(accessTokenDecoder(jwkSource))))
+                        .jwt(jwt -> jwt.decoder(AccessTokenDecoders.forUserInfo(jwkSource))))
                 .addFilterAfter(
                         new SsoSessionMaxAgeFilter(sessionMaxAge, Clock.systemUTC()),
                         SecurityContextHolderFilter.class)
@@ -168,10 +164,11 @@ public class SsoAuthorizationServerConfig {
     private static void onlyWhatIsServed(Map<String, Object> document) {
         document.keySet().retainAll(DISCOVERY_FIELDS);
         document.put("response_types_supported", List.of("code"));
-        document.put("grant_types_supported", List.of("authorization_code"));
+        document.put("grant_types_supported", List.of("authorization_code", "client_credentials"));
         document.put("code_challenge_methods_supported", List.of("S256"));
         document.put("token_endpoint_auth_methods_supported", List.of("client_secret_basic"));
-        document.put("scopes_supported", List.of("openid", "profile", "email", SsoUserClaims.UNICLOUD_SCOPE));
+        document.put("scopes_supported", List.of("openid", "profile", "email", SsoUserClaims.UNICLOUD_SCOPE,
+                AccessTokenDecoders.DIRECTORY_SCOPE));
     }
 
     /**
@@ -197,27 +194,6 @@ public class SsoAuthorizationServerConfig {
             }
             chain.doFilter(request, response);
         };
-    }
-
-    /**
-     * Decodes the access tokens modules send to /userinfo. Like the library's own decoder, but it
-     * accepts the {@code typ: at+jwt} header the portal now puts on access tokens (RFC 9068).
-     * Tokens without a {@code typ} (issued before that, valid for at most 30 minutes) still
-     * decode; an ID token decodes too, but the library then finds no access token with that value
-     * in its store and answers 401.
-     */
-    private static JwtDecoder accessTokenDecoder(JWKSource<SecurityContext> jwkSource) {
-        DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
-        processor.setJWSTypeVerifier(new DefaultJOSEObjectTypeVerifier<>(new JOSEObjectType("at+jwt"), null));
-        processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, jwkSource));
-        // NimbusJwtDecoder checks the claims (exp, nbf) itself
-        processor.setJWTClaimsSetVerifier((claims, context) -> { });
-        NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
-        // Spring's default validators accept only typ JWT; keep their time checks
-        JwtTypeValidator type = new JwtTypeValidator("at+jwt");
-        type.setAllowEmpty(true);
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(new JwtTimestampValidator(), type));
-        return decoder;
     }
 
     /**
@@ -293,6 +269,11 @@ public class SsoAuthorizationServerConfig {
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
                 context.getJwsHeader().type("at+jwt");
                 context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
+                if (AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+                    // A module's own token for the directory API: sub is the client id. A plain
+                    // ArrayList: the library stores token claims as JSON and reads back only those.
+                    context.getClaims().audience(new java.util.ArrayList<>(List.of(AccessTokenDecoders.DIRECTORY_AUDIENCE)));
+                }
                 return;
             }
             if (!OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {

@@ -19,6 +19,8 @@
         td.perm-cell { font-family: ui-monospace, monospace; font-size: .8rem; }
         .row-actions button { font-size: .85rem; padding: 4px 10px; }
         .edit-row td { background: var(--bg); }
+        label.check { display: flex; gap: 8px; align-items: center; font-weight: normal; margin: 12px 0 0; }
+        label.check input { width: auto; margin: 0; }
     </style>
 </head>
 <body>
@@ -70,6 +72,7 @@
         </div>
         <label for="redirects">Callback URLs, one per line (staging accepts any callback at login anyway)</label>
         <textarea id="redirects">http://localhost:3000/auth/callback</textarea>
+        <label class="check"><input id="client-directory" type="checkbox"> Directory API: the module's backend may read who is who with a <code>client_credentials</code> token (docs/sso.md, "The directory API")</label>
         <p id="client-message" class="message" role="status" hidden></p>
         <button type="submit">Register</button>
     </form>
@@ -228,9 +231,10 @@
                 clientId: $('client-id').value.trim(),
                 name: $('client-name').value.trim(),
                 redirectUris,
+                directory: $('client-directory').checked,
             });
             const message = $('client-message');
-            show(message, `Registered ${client.clientId}. Its secret, shown only now: `, true);
+            show(message, `Registered ${client.clientId}${$('client-directory').checked ? ' with the directory grant' : ''}. Its secret, shown only now: `, true);
             const secret = document.createElement('div');
             secret.className = 'secret';
             secret.textContent = client.clientSecret;

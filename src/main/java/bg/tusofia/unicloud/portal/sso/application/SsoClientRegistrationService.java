@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.sso.application;
 
+import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
 import bg.tusofia.unicloud.portal.exception.DuplicateResourceException;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientRequest;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientResponse;
@@ -82,7 +83,8 @@ public class SsoClientRegistrationService {
                 request.postLogoutRedirectUris() == null ? List.of() : request.postLogoutRedirectUris(),
                 "postLogoutRedirectUris");
 
-        RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
+        boolean directory = Boolean.TRUE.equals(request.directory());
+        RegisteredClient.Builder builder = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId(request.clientId())
                 .clientName(request.name().strip())
                 .clientSecret(passwordEncoder.encode(secret))
@@ -101,12 +103,17 @@ public class SsoClientRegistrationService {
                 .tokenSettings(TokenSettings.builder()
                         .authorizationCodeTimeToLive(codeTimeToLive)
                         .accessTokenTimeToLive(tokenTimeToLive)
-                        .build())
-                .build();
+                        .build());
+        if (directory) {
+            // The module's own token for the directory API (docs/sso.md, "The directory API")
+            builder.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                    .scope(AccessTokenDecoders.DIRECTORY_SCOPE);
+        }
+        RegisteredClient client = builder.build();
 
         clientRepository.save(client);
-        log.info("SSO client '{}' registered by user {} with redirect URIs {}",
-                client.getClientId(), registeredBy, redirectUris);
+        log.info("SSO client '{}' registered by user {} with redirect URIs {}{}",
+                client.getClientId(), registeredBy, redirectUris, directory ? " and the directory grant" : "");
         return new RegisterSsoClientResponse(client.getClientId(), secret, redirectUris, logoutUris);
     }
 

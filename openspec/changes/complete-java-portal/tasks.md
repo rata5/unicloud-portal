@@ -63,11 +63,11 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [ ] 4.9 `/connect/logout` without a valid `id_token_hint` asks for a confirmation with a CSRF-protected form (needs group 2's session, CSRF and Thymeleaf; done with it)
 
 ## 5. Directory
-- [ ] 5.1 `client_credentials` with the `directory` scope; validator for `invalid_scope`; `aud=unicloud-directory`; `unicloud-directory` reserved
-- [ ] 5.2 Chain 2 and the six GET routes, paging with `Link`
-- [ ] 5.3 The `directory` flag in module registration (portal API and staging)
-- [ ] 5.4 `DirectoryTests`
-- [ ] 5.5 `docs/sso.md`: the directory section, the troubleshooting rows, the production checklist line
+- [x] 5.1 `client_credentials` with the `directory` scope; validator for `invalid_scope`; `aud=unicloud-directory`; `unicloud-directory` reserved
+- [x] 5.2 Chain 2 and the six GET routes, paging with `Link`
+- [x] 5.3 The `directory` flag in module registration (the admin route and staging now; the portal page comes with group 6)
+- [x] 5.4 `DirectoryTests`
+- [x] 5.5 `docs/sso.md`: the directory section, the troubleshooting rows, the production checklist line
 
 ## 6. React UI over HAL-FORMS
 See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
