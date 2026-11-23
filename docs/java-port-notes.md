@@ -49,6 +49,12 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - The SSO chain sends a browser without a session to `/login?sso=1`.
 - Tests: `SignInTests` (10), `SignInThrottleTests`, `PortalPasswordEncoderTests`; the full suite has 115 tests.
 
+### Step 2 done (2026-11-23)
+- The app's JSON API: all 24 operations of the pinned contract in `portalapi/` (session, profiles, catalogue and enrollment, teaching, dean, inspection, admin), ported from the Rust `portal_api/`, with its rules and Bulgarian messages. Errors `{error, message}`, never cached.
+- `EnrollmentRules` (enroll with the contract's outcomes, cancel, teacher rejection, current semester), on the PR #14 locking; V7 adds `REJECTED` and `decided_by`. Enrollment acts on the signed-in student only.
+- `AccountCreation`: inspectors create students, admins create staff, all with a first password to change; only an admin makes an admin.
+- Tests: `PortalApiTests` (7, every role, every answer checked against the pinned contract by `PortalContract`), `PortalContractTests`; the full suite has 124 tests.
+
 ## Next
 
 - Group 8: `docs/sso.md` ("How the portal does it"), README.

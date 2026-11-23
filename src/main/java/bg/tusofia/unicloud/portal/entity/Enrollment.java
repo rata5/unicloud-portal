@@ -22,7 +22,7 @@ import jakarta.persistence.Table;
 public class Enrollment {
 
     public enum Status {
-        ENROLLED, CANCELLED
+        ENROLLED, CANCELLED, REJECTED
     }
 
     @Id

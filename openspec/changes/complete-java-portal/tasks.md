@@ -42,13 +42,13 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [ ] 2.13 Sign-out revokes the module logins made through that session
 
 ## 3. Accounts, catalogue and enrollment rules
-- [ ] 3.1 Inspector creates students (`STUDENT_CREATE`), admin creates staff (`STAFF_CREATE`), only an admin creates an admin; first password set by the creator; Bulgarian messages for duplicates
-- [ ] 3.2 Student status change (`STUDENT_CREATE`), effective for enrollment and new tokens
-- [ ] 3.3 Courses with a faculty, offerings with a teacher of that faculty; permission checks; no hard deletes; capacity not below the enrolled count
-- [ ] 3.4 Enrollment for the signed-in student only, current semester only (`app.current-semester`)
-- [ ] 3.5 Teacher rejection (V7: `REJECTED`, `decided_by`); a rejected student cannot enroll again
-- [ ] 3.6 Profile reads: ANY, FACULTY, ENROLLED, else 404
-- [ ] 3.7 Tests: accounts, profile access, enrollment rules, a mixed race in `EnrollmentConcurrencyTests`
+- [x] 3.1 Inspector creates students (`STUDENT_CREATE`), admin creates staff (`STAFF_CREATE`), only an admin creates an admin; first password set by the creator; Bulgarian messages for duplicates
+- [x] 3.2 Student status change (`STUDENT_CREATE`), effective for enrollment and new tokens
+- [ ] 3.3 Courses with a faculty, offerings with a teacher of that faculty; permission checks; no hard deletes; capacity not below the enrolled count (done through the app's API except a capacity change, which the contract has no operation for yet)
+- [x] 3.4 Enrollment for the signed-in student only, current semester only (`app.current-semester`)
+- [x] 3.5 Teacher rejection (V7: `REJECTED`, `decided_by`); a rejected student cannot enroll again
+- [x] 3.6 Profile reads: ANY, FACULTY, ENROLLED, else 404
+- [ ] 3.7 Tests: accounts, profile access, enrollment rules, a mixed race in `EnrollmentConcurrencyTests` (done in `PortalApiTests`; the mixed race is left)
 
 ## 4. SSO provider alignment
 - [x] 4.1 Discovery lists only what is served; revocation, introspection and device endpoints switched off

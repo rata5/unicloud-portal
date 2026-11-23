@@ -63,6 +63,24 @@ public class SsoUserClaims {
                 .map(user -> claims(user, scopes));
     }
 
+    /**
+     * A user's profile, in the claim shapes and in a fixed order: {@code sub, role, given_name,
+     * family_name, name, email}, and {@code faculty} and {@code student} when the user has them.
+     * Empty for an unknown or disabled user. The directory and the portal app answer with it.
+     */
+    public Optional<Map<String, Object>> profile(String subject) {
+        return forSubject(subject, List.of(OidcScopes.EMAIL, OidcScopes.PROFILE, UNICLOUD_SCOPE)).map(claims -> {
+            Map<String, Object> profile = new LinkedHashMap<>();
+            profile.put("sub", subject);
+            for (String name : List.of("role", "given_name", "family_name", "name", "email", "faculty", "student")) {
+                if (claims.containsKey(name)) {
+                    profile.put(name, claims.get(name));
+                }
+            }
+            return profile;
+        });
+    }
+
     private Map<String, Object> claims(User user, Collection<String> scopes) {
         Map<String, Object> claims = new LinkedHashMap<>();
         if (scopes.contains(OidcScopes.EMAIL)) {

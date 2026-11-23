@@ -121,7 +121,7 @@ public class SignInController {
         return "login";
     }
 
-    static String csrfToken(HttpServletRequest request) {
+    public static String csrfToken(HttpServletRequest request) {
         return request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken token ? token.getToken() : "";
     }
 

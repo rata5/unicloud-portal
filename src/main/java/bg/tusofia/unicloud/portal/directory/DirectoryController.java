@@ -39,8 +39,6 @@ import java.util.Optional;
 @RequestMapping("/api/v1/directory")
 public class DirectoryController {
 
-    private static final List<String> USER_SCOPES =
-            List.of(OidcScopes.EMAIL, OidcScopes.PROFILE, SsoUserClaims.UNICLOUD_SCOPE);
 
     private final SsoUserClaims userClaims;
     private final UserRepository users;
@@ -63,16 +61,7 @@ public class DirectoryController {
     @Operation(summary = "A user, with the claim shapes")
     @GetMapping("/users/{sub}")
     public Map<String, Object> user(@PathVariable String sub) {
-        Map<String, Object> claims = userClaims.forSubject(sub, USER_SCOPES)
-                .orElseThrow(() -> notFound("User", sub));
-        Map<String, Object> user = new LinkedHashMap<>();
-        user.put("sub", sub);
-        for (String name : List.of("role", "given_name", "family_name", "name", "email", "faculty", "student")) {
-            if (claims.containsKey(name)) {
-                user.put(name, claims.get(name));
-            }
-        }
-        return user;
+        return userClaims.profile(sub).orElseThrow(() -> notFound("User", sub));
     }
 
     /** A student's ENROLLED offerings: {@code [{id, code, title, semester}]}. */
