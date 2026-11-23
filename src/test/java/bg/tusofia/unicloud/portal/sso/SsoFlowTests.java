@@ -116,7 +116,7 @@ class SsoFlowTests {
         MockHttpServletResponse toLogin = mockMvc.perform(authorize(client, pkce))
                 .andExpect(status().isFound())
                 .andReturn().getResponse();
-        assertThat(toLogin.getRedirectedUrl()).endsWith("/login.html?sso=1");
+        assertThat(toLogin.getRedirectedUrl()).endsWith("/login?sso=1");
         Cookie session = toLogin.getCookie(SESSION_COOKIE);
         assertThat(session).isNotNull();
         assertThat(toLogin.getHeader(HttpHeaders.SET_COOKIE))
@@ -195,7 +195,7 @@ class SsoFlowTests {
                 .andExpect(status().isNoContent());
         assertThat(mockMvc.perform(authorize(client, new Pkce()).cookie(loggedIn))
                 .andExpect(status().isFound())
-                .andReturn().getResponse().getRedirectedUrl()).endsWith("/login.html?sso=1");
+                .andReturn().getResponse().getRedirectedUrl()).endsWith("/login?sso=1");
     }
 
     @Test
@@ -229,7 +229,7 @@ class SsoFlowTests {
 
         // The next module login asks for the password again
         assertThat(mockMvc.perform(authorize(client, new Pkce()).cookie(loggedIn))
-                .andReturn().getResponse().getRedirectedUrl()).endsWith("/login.html?sso=1");
+                .andReturn().getResponse().getRedirectedUrl()).endsWith("/login?sso=1");
     }
 
     @Test
@@ -358,7 +358,7 @@ class SsoFlowTests {
         for (String token : new String[] {bearer(STUDENT_ID, "STUDENT"), "Bearer " + moduleAccessToken}) {
             assertThat(mockMvc.perform(authorize(client, new Pkce()).header(HttpHeaders.AUTHORIZATION, token))
                     .andExpect(status().isFound())
-                    .andReturn().getResponse().getRedirectedUrl()).endsWith("/login.html?sso=1");
+                    .andReturn().getResponse().getRedirectedUrl()).endsWith("/login?sso=1");
         }
     }
 

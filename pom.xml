@@ -99,6 +99,19 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-session-jdbc</artifactId>
 		</dependency>
+		<!-- Server-rendered pages: sign-in, password change, logout confirmation, errors
+		     (openspec/changes/react-hypermedia-ui) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+		<!-- Argon2id password hashes (accounts-and-sign-in spec): Spring's Argon2PasswordEncoder
+		     runs on BouncyCastle's Argon2 implementation -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.81</version>
+		</dependency>
 		<!-- The API reference: OpenAPI 3.1 at /openapi.json and Swagger UI at /api-docs.
 		     springdoc 3.x is the line for Spring Boot 4; 3.2.0 is built against Boot 4.1.2 -->
 		<dependency>

@@ -17,7 +17,7 @@ The fork's `rust-rewrite` branch (Alex-Tsvetanov/unicloud-portal, `c16da1a`) reb
 | 2026-11-23 | `response_type` other than `code`: plain 400, no redirect (task 4.2b) | Fail closed; the library answers before the callback is checked |
 | 2026-11-23 | API reference from the `feature/swagger` branch (PR #12) | `/api-docs` and `/openapi.json`, module-facing only |
 | 2026-11-23 | UI: serve the React app's own JSON API exactly, and add HAL-FORMS links and forms ("option 3", [ADR 0004](adr/0004-react-ui-over-a-hal-forms-api.md)) | The app exists and a teammate owns it; the brief asks for hypermedia. The contract is pinned in `openspec/changes/react-hypermedia-ui/portal-api.openapi.json` |
-| 2026-11-23 | Backend only; `web/` (the app and `@unicloud/ui`) is the UI owner's | Someone else does the UI |
+| 2026-11-23 | Copy the fork's `web/` (the app and `@unicloud/ui`) into this repository unchanged | The task: "replacing the UI with React just like in the rust-rewrite"; whoever owns the UI carries on from there |
 | 2026-11-23 | Port the Rust code behind the app as the reference: `portal_api/`, `accounts/`, `enrollment.rs`, `web/session.rs`, `web/csrf.rs`, `spa.rs`; its `tests/portal.rs` is the checklist | Same behaviour, same Bulgarian messages, same edge cases |
 
 ## Done
@@ -32,6 +32,8 @@ The fork's `rust-rewrite` branch (Alex-Tsvetanov/unicloud-portal, `c16da1a`) reb
 | `e4ab138` | 7.3 security headers; 7.4 the API reference |
 | `0a98d88` | 7.1 request log; 7.2 clear error without the signing key; 7.5 start-up data; V6 `must_change_password` |
 | `b7425a7` | The UI change rewritten for option 3 |
+| `a1ec923` | These notes |
+| `948a62c` | `web/` (the React app and `@unicloud/ui`) taken over from the fork |
 
 ## Doing now
 
@@ -39,6 +41,13 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 1. The cookie session next to the JWT login: sign-in page, Argon2id with BCrypt upgrade, throttling, first-password change, logout, CSRF.
 2. Account, catalogue and enrollment rules: who creates whom, teacher rejection, current semester, profile reads.
 3. The app's JSON API (24 operations), with links and forms; hosting `/app` and `/ui/v1`.
+
+### Step 1 done (2026-11-23)
+- The cookie session (`PortalSessionSecurityConfig`, chain order 2) next to the old JWT chain (now order 3): `/login` and `/password` (Thymeleaf, texts from the Rust `accounts/handlers.rs`), `POST /logout`, CSRF with header `X-CSRF-Token` and field `csrf`, JSON errors for `/api/v1/portal`.
+- `PortalUserFilter` in the portal and SSO chains: the user read per request, disabled users signed out, permissions current, `must_change_password` held back (with the waiting SSO login kept).
+- Argon2id with BCrypt upgrade at sign-in, at most 4 hashes at once (`PortalPasswordEncoder`); throttling (`SignInThrottle`).
+- The SSO chain sends a browser without a session to `/login?sso=1`.
+- Tests: `SignInTests` (10), `SignInThrottleTests`, `PortalPasswordEncoderTests`; the full suite has 115 tests.
 
 ## Next
 

@@ -4,7 +4,7 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 
 ## 1. Contract
 - [x] 1.1 Pin the contract: [portal-api.openapi.json](portal-api.openapi.json), the fork's "Portal UI" part at `c16da1a`
-- [ ] 1.2 Agree with the UI owner: the pinned contract, the hypermedia on top, where `web/` lives, who builds it
+- [ ] 1.2 Agree with the UI owner: the pinned contract and the hypermedia on top (`web/` now lives in this repository, decided 2026-11-23)
 - [ ] 1.3 ADR 0004 accepted
 
 ## 2. Backend
@@ -17,7 +17,7 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 - [ ] 2.7 `PortalApiContractTests` (JSON Schema validator, test scope), `PortalHypermediaTests`, permission and hosting tests
 
 ## 3. Frontend (UI owner)
-- [ ] 3.1 `web/` with the app and `@unicloud/ui` 1.0.0 in this repository (or wherever 1.2 decides)
+- [x] 3.1 `web/` with the app and `@unicloud/ui` 1.0.0 in this repository (`948a62c`, from the fork at `c16da1a`)
 - [ ] 3.2 The app runs against the Java portal unchanged
 - [ ] 3.3 Move navigation, buttons and forms to the links and templates, page by page
 

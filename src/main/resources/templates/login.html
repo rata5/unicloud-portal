@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!-- Sign-in (SignInController). Texts as on the fork's Rust portal (accounts/handlers.rs). -->
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход · UniCloud</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main class="card card-narrow">
+    <p class="muted">Единен университетски портал</p>
+    <h1>Вход в UniCloud</h1>
+    <p class="muted" th:if="${sso}">Модул на UniCloud иска да ви идентифицира. Влезте веднъж тук и ще бъдете върнати обратно.</p>
+    <p class="error" role="alert" th:if="${error}" th:text="${error}">Грешка</p>
+
+    <form method="post" action="/login">
+        <input type="hidden" name="csrf" th:value="${csrf}">
+        <input type="hidden" name="next" th:if="${next}" th:value="${next}">
+
+        <label for="email">Имейл</label>
+        <input id="email" name="email" type="email" autocomplete="username" required autofocus th:value="${email}">
+
+        <label for="password">Парола</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit">Вход</button>
+    </form>
+    <p class="muted">Нямате профил? Студентите получават профил от учебен отдел, служителите от администратор.</p>
+</main>
+</body>
+</html>

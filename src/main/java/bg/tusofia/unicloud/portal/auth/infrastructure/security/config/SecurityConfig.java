@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.auth.infrastructure.security.config;
 
+import bg.tusofia.unicloud.portal.accounts.infrastructure.PortalPasswordEncoder;
 import bg.tusofia.unicloud.portal.config.SecurityHeaders;
 import jakarta.servlet.DispatcherType;
 import com.nimbusds.jose.JOSEException;
@@ -50,11 +51,14 @@ public class SecurityConfig {
 
 
     /**
-     * The portal's own API and pages. The SSO endpoints (/oauth2/**, /.well-known/**, /userinfo,
-     * /connect/logout) have their own chain, which runs first: SsoAuthorizationServerConfig.
+     * The portal's old API and static pages, with the portal's own JWT. It runs last and takes
+     * every request the other chains leave: directory (0, DirectorySecurityConfig), SSO (1,
+     * SsoAuthorizationServerConfig) and the cookie session for /login, /password, /logout, the
+     * app and its JSON API (2, PortalSessionSecurityConfig). It goes once the app replaces the
+     * old pages (complete-java-portal task 2.6).
      */
     @Bean
-    @Order(2)
+    @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment)
             throws Exception {
 
@@ -132,9 +136,10 @@ public class SecurityConfig {
                 .build();
     }
 
+    /** Argon2id for new hashes; BCrypt hashes from before still verify (PortalPasswordEncoder). */
     @Bean
     PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new PortalPasswordEncoder();
     }
 
     /**

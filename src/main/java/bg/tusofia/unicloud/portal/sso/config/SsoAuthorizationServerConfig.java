@@ -1,5 +1,7 @@
 package bg.tusofia.unicloud.portal.sso.config;
 
+import bg.tusofia.unicloud.portal.accounts.web.PortalUserFilter;
+import bg.tusofia.unicloud.portal.user.domain.UserRepository;
 import bg.tusofia.unicloud.portal.config.SecurityHeaders;
 import bg.tusofia.unicloud.portal.sso.infrastructure.AccessTokenDecoders;
 import bg.tusofia.unicloud.portal.sso.infrastructure.DirectoryTokenRequestConverter;
@@ -75,8 +77,8 @@ import java.util.Map;
 @EnableScheduling
 public class SsoAuthorizationServerConfig {
 
-    /** Where /oauth2/authorize sends a browser that has no SSO session yet. */
-    public static final String LOGIN_PAGE = "/login.html?sso=1";
+    /** Where /oauth2/authorize sends a browser that has no SSO session yet (SignInController). */
+    public static final String LOGIN_PAGE = "/login?sso=1";
 
     /**
      * The SSO session cookie. The __Host- prefix makes the browser refuse it unless it is Secure,
@@ -110,6 +112,7 @@ public class SsoAuthorizationServerConfig {
             SsoUserClaims userClaims,
             SsoCallbackPolicy callbackPolicy,
             AuthorizationServerSettings settings,
+            UserRepository users,
             @Value("${app.sso.session-max-age}") Duration sessionMaxAge) throws Exception {
 
         http
@@ -158,6 +161,9 @@ public class SsoAuthorizationServerConfig {
                 .addFilterAfter(
                         new SsoSessionMaxAgeFilter(sessionMaxAge, Clock.systemUTC()),
                         SecurityContextHolderFilter.class)
+                // The signed-in user read again: a disabled user gets no new login, and a first
+                // password must be changed before a module gets a code
+                .addFilterAfter(new PortalUserFilter(users), SsoSessionMaxAgeFilter.class)
                 .addFilterBefore(notServed(settings), SecurityContextHolderFilter.class);
 
         return http.build();
