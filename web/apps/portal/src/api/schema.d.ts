@@ -4,287 +4,6 @@
  */
 
 export interface paths {
-    "/.well-known/openid-configuration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Discovery document */
-        get: operations["discovery"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/oauth2/jwks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Public signing keys
-         * @description Cache the keys. Fetch them again when a token has a `kid` you do not know.
-         */
-        get: operations["jwks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/oauth2/token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Exchange a code, or get a directory token
-         * @description Client authentication is HTTP Basic only (`client_secret_basic`).
-         *
-         *     - `authorization_code`: exchanges the code from the callback. The code works once and for 60 seconds. A second exchange fails and revokes what the first one issued.
-         *     - `client_credentials`: a token for the directory API. The module must hold the `directory` grant.
-         */
-        post: operations["token"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/userinfo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The signed-in user's claims
-         * @description Takes the access token from an authorization-code exchange. Claims are read from the database now, for the scopes granted at login.
-         */
-        get: operations["userinfo"];
-        put?: never;
-        /** The signed-in user's claims (POST) */
-        post: operations["userinfoPost"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/users/{sub}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A user */
-        get: operations["directoryUser"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/users/{sub}/enrollments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A student's current courses */
-        get: operations["directoryStudentEnrollments"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/users/{sub}/offerings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The courses a teacher teaches */
-        get: operations["directoryTeacherOfferings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/offerings/{id}/students": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The students enrolled in a course */
-        get: operations["directoryOfferingStudents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/faculties/{code}/offerings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A faculty's courses */
-        get: operations["directoryFacultyOfferings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/directory/faculties/{code}/students": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A faculty's students */
-        get: operations["directoryFacultyStudents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staging/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every permission and each role's defaults */
-        get: operations["stagingRoles"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staging/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every user (never passwords) */
-        get: operations["stagingUsers"];
-        put?: never;
-        /**
-         * Create a test user
-         * @description The user can sign in at once, with no forced password change.
-         */
-        post: operations["stagingCreateUser"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staging/users/{id}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Replace a user's permissions
-         * @description Tokens carry the permissions of the moment they are issued, so sign in again afterwards.
-         */
-        put: operations["stagingSetPermissions"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/staging/sso-clients": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register a module
-         * @description The secret is shown once. Register again under a new id if it is lost.
-         */
-        post: operations["stagingRegisterClient"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Liveness and the running commit
-         * @description Never touches the database. Every response of the portal carries `X-Served-By` with the replica's name.
-         */
-        get: operations["health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/portal/me": {
         parameters: {
             query?: never;
@@ -639,178 +358,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * @description Today one of these. More may come: treat an unknown role as no access
-         * @enum {string}
-         */
-        Role: "STUDENT" | "TEACHER" | "DEAN" | "INSPECTOR" | "ADMIN";
-        /**
-         * @description Lists are in this (bit) order. More may come
-         * @enum {string}
-         */
-        Permission: "STAFF_CREATE" | "STUDENT_CREATE" | "STUDENT_PROFILE_READ_OWN" | "STUDENT_PROFILE_READ_ANY" | "STUDENT_PROFILE_READ_ENROLLED" | "COURSE_CREATE_MODIFY" | "COURSE_OFFERING_READ" | "COURSE_OFFERING_CREATE_MODIFY" | "ENROLLMENT_REQUEST_CREATE" | "ENROLLMENT_REQUEST_ACCEPT_REJECT" | "STUDENT_PROFILE_READ_FACULTY";
-        Faculty: {
-            code: string;
-            name: string;
-        };
-        Student: {
-            faculty_number: string;
-            specialty: string;
-            study_year: number;
-            /** @enum {string} */
-            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
-        };
-        /** @description Each group comes only with its scope: `email`; `profile` (`given_name`, `family_name`, `name`); `unicloud` (`role`, `permissions`, `faculty`, `student`) */
-        Claims: {
-            /** @description The user id. Stable: use it as the key, not the email */
-            sub: string;
-            /** Format: email */
-            email?: string;
-            given_name?: string;
-            family_name?: string;
-            name?: string;
-            role?: components["schemas"]["Role"];
-            permissions?: components["schemas"]["Permission"][];
-            faculty?: components["schemas"]["Faculty"];
-            student?: components["schemas"]["Student"];
-        };
-        DirectoryUser: {
-            sub: string;
-            role: components["schemas"]["Role"];
-            /** Format: email */
-            email: string;
-            given_name: string;
-            family_name: string;
-            name: string;
-            faculty?: components["schemas"]["Faculty"];
-            student?: components["schemas"]["Student"];
-        };
-        /** @description One course in one semester. `code` is the course code, the identifier to share with other modules */
-        Offering: {
+        CatalogOffering: {
             /** Format: int64 */
             id: number;
             code: string;
             title: string;
-            semester: string;
+            ects: number;
+            faculty: string;
+            teacher: string;
+            enrolled: number;
+            capacity: number;
+            my_status: ("ENROLLED" | "CANCELLED" | "REJECTED") | null;
         };
-        OfferingWithTeacher: components["schemas"]["Offering"] & {
-            teacher_sub: string;
-        };
-        OfferingStudent: {
-            sub: string;
-            name: string;
-            faculty_number: string;
-        };
-        FacultyStudent: {
-            sub: string;
-            name: string;
-            faculty_number: string;
-            specialty: string;
-            study_year: number;
-            /** @enum {string} */
-            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
-        };
-        NotFound: {
-            /** @constant */
-            error: "not_found";
-        };
-        AuthorizationCodeGrant: {
-            /** @constant */
-            grant_type: "authorization_code";
-            /** @description From the callback */
-            code: string;
-            /** @description The same as in the login */
-            redirect_uri: string;
-            /** @description The PKCE verifier, 43 to 128 characters */
-            code_verifier: string;
-        };
-        ClientCredentialsGrant: {
-            /** @constant */
-            grant_type: "client_credentials";
-            /** @constant */
-            scope?: "directory";
-        };
-        TokenResponse: {
-            /** @description JWT, header `typ: at+jwt` */
-            access_token: string;
-            /** @description JWT. Only for `authorization_code` */
-            id_token?: string;
-            scope: string;
-            /** @constant */
-            token_type: "Bearer";
-            expires_in: number;
-        };
-        OAuthError: {
-            /** @enum {string} */
-            error: "invalid_request" | "invalid_client" | "invalid_grant" | "invalid_scope" | "unsupported_grant_type" | "server_error";
-            error_description?: string;
-        };
-        Discovery: {
-            issuer: string;
-            authorization_endpoint: string;
-            token_endpoint: string;
-            jwks_uri: string;
-            userinfo_endpoint: string;
-            end_session_endpoint: string;
-            response_types_supported?: string[];
-            grant_types_supported?: string[];
-            code_challenge_methods_supported?: string[];
-            scopes_supported?: string[];
-            token_endpoint_auth_methods_supported?: string[];
-            id_token_signing_alg_values_supported?: string[];
-        };
-        Jwks: {
-            keys: {
-                /** @constant */
-                kty: "RSA";
-                /** @description RFC 7638 thumbprint */
-                kid: string;
-                n: string;
-                e: string;
-            }[];
-        };
-        StagingRoles: {
-            roleDefaults: {
-                [key: string]: components["schemas"]["Permission"][];
-            };
-            permissions: components["schemas"]["Permission"][];
-        };
-        StagingUser: {
-            /** Format: int64 */
-            id: number;
-            email: string;
-            firstName: string;
-            lastName: string;
-            role: components["schemas"]["Role"];
-            /** @description Faculty code */
-            faculty?: string | null;
-            permissions: components["schemas"]["Permission"][];
-            /** @description Has an academic record */
-            student: boolean;
-        };
-        StagingCreateUser: {
-            email: string;
-            password: string;
-            firstName: string;
-            lastName: string;
-            /** @description Case-insensitive */
-            role: string;
-            /** @description Faculty code. Required for TEACHER, DEAN and INSPECTOR */
-            faculty?: string;
-            /** @description Left out: the role's defaults. `[]`: none */
-            permissions?: components["schemas"]["Permission"][];
-            /** @description Required for STUDENT, refused for other roles */
-            student?: {
-                facultyNumber: string;
-                /** @description A specialty name or id */
-                specialty: string;
-                studyYear: number;
-                /**
-                 * @default ACTIVE
-                 * @enum {string}
-                 */
-                status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
-            };
+        ClientRegistered: {
+            clientId: string;
+            /** @description 43 characters. Shown once */
+            clientSecret: string;
+            redirectUris: string[];
+            postLogoutRedirectUris: string[];
+            directory: boolean;
         };
         ClientRegistration: {
             /** @description `unicloud-*` and all-digit ids are reserved */
@@ -824,34 +390,81 @@ export interface components {
              */
             directory: boolean;
         };
-        ClientRegistered: {
-            clientId: string;
-            /** @description 43 characters. Shown once */
-            clientSecret: string;
-            redirectUris: string[];
-            postLogoutRedirectUris: string[];
-            directory: boolean;
+        Created: {
+            sub: string;
         };
-        ApiError: {
-            /** Format: date-time */
-            timestamp: string;
-            status: number;
-            error: string;
-            message: string;
-            path: string;
-            fieldErrors?: {
-                field?: string;
-                message?: string;
-            }[] | null;
+        DirectoryUser: {
+            sub: string;
+            role: components["schemas"]["Role"];
+            /** Format: email */
+            email: string;
+            given_name: string;
+            family_name: string;
+            name: string;
+            faculty?: components["schemas"]["Faculty"];
+            student?: components["schemas"]["Student"];
         };
-        PortalError: {
+        EnrollResult: {
             /** @enum {string} */
-            error: "unauthenticated" | "password_change_required" | "forbidden" | "not_found" | "invalid" | "conflict" | "server_error";
+            outcome: "ENROLLED" | "ALREADY_ENROLLED" | "FULL" | "CLOSED" | "REJECTED" | "NOT_ACTIVE" | "NO_SUCH_OFFERING";
             message: string;
         };
-        NavItem: {
-            path: string;
-            label: string;
+        Faculty: {
+            code: string;
+            name: string;
+        };
+        FacultyOffering: {
+            code: string;
+            title: string;
+            teacher: string;
+            enrolled: number;
+            capacity: number;
+        };
+        FacultyOverview: {
+            faculty: components["schemas"]["Faculty"];
+            semester: string;
+            offerings: components["schemas"]["FacultyOffering"][];
+            students: components["schemas"]["FacultyStudent"][];
+        };
+        FacultyStudent: {
+            sub: string;
+            name: string;
+            faculty_number: string;
+            specialty: string;
+            study_year: number;
+            /** @enum {string} */
+            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
+        };
+        InspectCourse: {
+            code: string;
+            title: string;
+            ects: number;
+            faculty: string;
+        };
+        InspectCourses: {
+            courses: components["schemas"]["InspectCourse"][];
+            offerings: components["schemas"]["InspectOffering"][];
+            teachers: components["schemas"]["TeacherOption"][];
+        };
+        InspectOffering: {
+            /** Format: int64 */
+            id: number;
+            code: string;
+            semester: string;
+            teacher: string;
+            enrolled: number;
+            capacity: number;
+            is_open: boolean;
+        };
+        InspectStudent: {
+            sub: string;
+            name: string;
+            email: string;
+            faculty_number: string;
+            specialty: string;
+            study_year: number;
+            /** @enum {string} */
+            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
         };
         Me: {
             user: {
@@ -869,32 +482,12 @@ export interface components {
             semester: string;
             nav: components["schemas"]["NavItem"][];
         };
-        Specialty: {
-            id: number;
-            faculty_code: string;
+        ModuleSummary: {
+            client_id: string;
             name: string;
-        };
-        Options: {
-            faculties: components["schemas"]["Faculty"][];
-            specialties: components["schemas"]["Specialty"][];
-            semester: string;
-        };
-        CatalogOffering: {
-            /** Format: int64 */
-            id: number;
-            code: string;
-            title: string;
-            ects: number;
-            faculty: string;
-            teacher: string;
-            enrolled: number;
-            capacity: number;
-            my_status: ("ENROLLED" | "CANCELLED" | "REJECTED") | null;
-        };
-        EnrollResult: {
-            /** @enum {string} */
-            outcome: "ENROLLED" | "ALREADY_ENROLLED" | "FULL" | "CLOSED" | "REJECTED" | "NOT_ACTIVE" | "NO_SUCH_OFFERING";
-            message: string;
+            redirect_uris: string[];
+            directory: boolean;
+            created: string;
         };
         MyEnrollment: {
             /** Format: int64 */
@@ -906,96 +499,9 @@ export interface components {
             /** @enum {string} */
             status: "ENROLLED" | "CANCELLED" | "REJECTED";
         };
-        TeachOffering: {
-            /** Format: int64 */
-            id: number;
-            code: string;
-            title: string;
-            semester: string;
-            enrolled: number;
-            capacity: number;
-            is_open: boolean;
-        };
-        RosterEntry: {
-            /** Format: int64 */
-            enrollment_id: number;
-            student_sub: string;
-            name: string;
-            faculty_number: string;
-            /** @enum {string} */
-            status: "ENROLLED" | "CANCELLED" | "REJECTED";
-        };
-        OfferingRoster: {
-            offering: components["schemas"]["TeachOffering"];
-            roster: components["schemas"]["RosterEntry"][];
-        };
-        FacultyOffering: {
-            code: string;
-            title: string;
-            teacher: string;
-            enrolled: number;
-            capacity: number;
-        };
-        FacultyOverview: {
-            faculty: components["schemas"]["Faculty"];
-            semester: string;
-            offerings: components["schemas"]["FacultyOffering"][];
-            students: components["schemas"]["FacultyStudent"][];
-        };
-        InspectStudent: {
-            sub: string;
-            name: string;
-            email: string;
-            faculty_number: string;
-            specialty: string;
-            study_year: number;
-            /** @enum {string} */
-            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
-        };
-        NewStudent: {
-            email: string;
-            first_name: string;
-            last_name: string;
-            faculty_number: string;
-            specialty_id: number;
-            study_year: number;
-            password: string;
-        };
-        StatusChange: {
-            /** @enum {string} */
-            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
-        };
-        Created: {
-            sub: string;
-        };
-        Toggled: {
-            enabled: boolean;
-        };
-        InspectCourse: {
-            code: string;
-            title: string;
-            ects: number;
-            faculty: string;
-        };
-        InspectOffering: {
-            /** Format: int64 */
-            id: number;
-            code: string;
-            semester: string;
-            teacher: string;
-            enrolled: number;
-            capacity: number;
-            is_open: boolean;
-        };
-        TeacherOption: {
-            sub: string;
-            name: string;
-            faculty: string | null;
-        };
-        InspectCourses: {
-            courses: components["schemas"]["InspectCourse"][];
-            offerings: components["schemas"]["InspectOffering"][];
-            teachers: components["schemas"]["TeacherOption"][];
+        NavItem: {
+            path: string;
+            label: string;
         };
         NewCourse: {
             code: string;
@@ -1009,14 +515,6 @@ export interface components {
             teacher_sub: string;
             capacity: number;
         };
-        StaffMember: {
-            sub: string;
-            name: string;
-            email: string;
-            role: components["schemas"]["Role"];
-            faculty: string | null;
-            enabled: boolean;
-        };
         NewStaff: {
             email: string;
             first_name: string;
@@ -1025,534 +523,99 @@ export interface components {
             faculty_code?: string | null;
             password: string;
         };
-        ModuleSummary: {
-            client_id: string;
+        NewStudent: {
+            email: string;
+            first_name: string;
+            last_name: string;
+            faculty_number: string;
+            specialty_id: number;
+            study_year: number;
+            password: string;
+        };
+        OfferingRoster: {
+            offering: components["schemas"]["TeachOffering"];
+            roster: components["schemas"]["RosterEntry"][];
+        };
+        Options: {
+            faculties: components["schemas"]["Faculty"][];
+            specialties: components["schemas"]["Specialty"][];
+            semester: string;
+        };
+        /**
+         * @description Lists are in this (bit) order. More may come
+         * @enum {string}
+         */
+        Permission: "STAFF_CREATE" | "STUDENT_CREATE" | "STUDENT_PROFILE_READ_OWN" | "STUDENT_PROFILE_READ_ANY" | "STUDENT_PROFILE_READ_ENROLLED" | "COURSE_CREATE_MODIFY" | "COURSE_OFFERING_READ" | "COURSE_OFFERING_CREATE_MODIFY" | "ENROLLMENT_REQUEST_CREATE" | "ENROLLMENT_REQUEST_ACCEPT_REJECT" | "STUDENT_PROFILE_READ_FACULTY";
+        PortalError: {
+            /** @enum {string} */
+            error: "unauthenticated" | "password_change_required" | "forbidden" | "not_found" | "invalid" | "conflict" | "server_error";
+            message: string;
+        };
+        /**
+         * @description Today one of these. More may come: treat an unknown role as no access
+         * @enum {string}
+         */
+        Role: "STUDENT" | "TEACHER" | "DEAN" | "INSPECTOR" | "ADMIN";
+        RosterEntry: {
+            /** Format: int64 */
+            enrollment_id: number;
+            student_sub: string;
             name: string;
-            redirect_uris: string[];
-            directory: boolean;
-            created: string;
+            faculty_number: string;
+            /** @enum {string} */
+            status: "ENROLLED" | "CANCELLED" | "REJECTED";
+        };
+        Specialty: {
+            id: number;
+            faculty_code: string;
+            name: string;
+        };
+        StaffMember: {
+            sub: string;
+            name: string;
+            email: string;
+            role: components["schemas"]["Role"];
+            faculty: string | null;
+            enabled: boolean;
+        };
+        StatusChange: {
+            /** @enum {string} */
+            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
+        };
+        Student: {
+            faculty_number: string;
+            specialty: string;
+            study_year: number;
+            /** @enum {string} */
+            status: "ACTIVE" | "INTERRUPTED" | "GRADUATED";
+        };
+        TeachOffering: {
+            /** Format: int64 */
+            id: number;
+            code: string;
+            title: string;
+            semester: string;
+            enrolled: number;
+            capacity: number;
+            is_open: boolean;
+        };
+        TeacherOption: {
+            sub: string;
+            name: string;
+            faculty: string | null;
+        };
+        Toggled: {
+            enabled: boolean;
         };
     };
-    responses: {
-        /** @description Missing, invalid, expired or revoked token, or the wrong kind of token */
-        InvalidToken: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @constant */
-                    error: "invalid_token";
-                };
-            };
-        };
-        /** @description Not found */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["NotFound"];
-            };
-        };
-        /** @description Invalid input */
-        ApiError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ApiError"];
-            };
-        };
-    };
-    parameters: {
-        /** @description The portal's user id (the `sub` claim) */
-        Sub: string;
-        /** @description The faculty code */
-        FacultyCode: string;
-        /** @description Page number, from 1 */
-        Page: number;
-    };
+    responses: never;
+    parameters: never;
     requestBodies: never;
-    headers: {
-        /** @description `<...?page=N>; rel="next"` when more items remain */
-        NextLink: string;
-    };
+    headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    discovery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Endpoints and capabilities. `issuer` is the exact value of `iss` in every token */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Discovery"];
-                };
-            };
-        };
-    };
-    jwks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The key set */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Jwks"];
-                };
-            };
-        };
-    };
-    token: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AuthorizationCodeGrant"] | components["schemas"]["ClientCredentialsGrant"];
-            };
-        };
-        responses: {
-            /** @description Tokens. `Cache-Control: no-store`. There is never a refresh token */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            /** @description `invalid_grant` (bad, used or expired code, wrong `redirect_uri` or verifier, disabled user), `invalid_scope`, `invalid_request` or `unsupported_grant_type` */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OAuthError"];
-                };
-            };
-            /** @description `invalid_client`: unknown client, wrong secret, or credentials not sent by HTTP Basic */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OAuthError"];
-                };
-            };
-        };
-    };
-    userinfo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Claims */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Claims"];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-        };
-    };
-    userinfoPost: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Claims */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Claims"];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-        };
-    };
-    directoryUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The portal's user id (the `sub` claim) */
-                sub: components["parameters"]["Sub"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The user, with the same shapes as the claims */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DirectoryUser"];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    directoryStudentEnrollments: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The portal's user id (the `sub` claim) */
-                sub: components["parameters"]["Sub"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Offerings the student is enrolled in */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Offering"][];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            /** @description Unknown user, or not a student */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFound"];
-                };
-            };
-        };
-    };
-    directoryTeacherOfferings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The portal's user id (the `sub` claim) */
-                sub: components["parameters"]["Sub"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Offerings */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Offering"][];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            /** @description Unknown user, or not a teacher */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotFound"];
-                };
-            };
-        };
-    };
-    directoryOfferingStudents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The offering id (one course in one semester) */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Enrolled students */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OfferingStudent"][];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    directoryFacultyOfferings: {
-        parameters: {
-            query?: {
-                /** @description Only this semester, for example `2026-27-W` */
-                semester?: string;
-                /** @description Page number, from 1 */
-                page?: components["parameters"]["Page"];
-            };
-            header?: never;
-            path: {
-                /** @description The faculty code */
-                code: components["parameters"]["FacultyCode"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description At most 200 offerings. When more remain, the `Link` header has `rel="next"` */
-            200: {
-                headers: {
-                    Link: components["headers"]["NextLink"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OfferingWithTeacher"][];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    directoryFacultyStudents: {
-        parameters: {
-            query?: {
-                /** @description Page number, from 1 */
-                page?: components["parameters"]["Page"];
-            };
-            header?: never;
-            path: {
-                /** @description The faculty code */
-                code: components["parameters"]["FacultyCode"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description At most 200 students. When more remain, the `Link` header has `rel="next"` */
-            200: {
-                headers: {
-                    Link: components["headers"]["NextLink"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FacultyStudent"][];
-                };
-            };
-            401: components["responses"]["InvalidToken"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    stagingRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Roles and permissions */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagingRoles"];
-                };
-            };
-        };
-    };
-    stagingUsers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Users ordered by id */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagingUser"][];
-                };
-            };
-        };
-    };
-    stagingCreateUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StagingCreateUser"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagingUser"];
-                };
-            };
-            400: components["responses"]["ApiError"];
-            /** @description The email or faculty number is taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
-    stagingSetPermissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    permissions: components["schemas"]["Permission"][];
-                };
-            };
-        };
-        responses: {
-            /** @description The user */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StagingUser"];
-                };
-            };
-            400: components["responses"]["ApiError"];
-            /** @description Unknown user */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
-    stagingRegisterClient: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClientRegistration"];
-            };
-        };
-        responses: {
-            /** @description Registered */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClientRegistered"];
-                };
-            };
-            400: components["responses"]["ApiError"];
-            /** @description The client id is taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
-    health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Up */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "ok";
-                        /** @description The git commit */
-                        version: string;
-                    };
-                };
-            };
-        };
-    };
     portalMe: {
         parameters: {
             query?: never;

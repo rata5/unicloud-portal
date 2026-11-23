@@ -81,10 +81,10 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - The signing key moved to `sso/config/SigningKeyConfig`, the password encoder to `PortalSessionSecurityConfig`. Module token lifetime is `app.sso.token-ttl-minutes` (30). `APP_JWT_PRIVATE_KEY` and `APP_JWT_PUBLIC_KEY` stay.
 - `SsoFlowTests` and `SsoAnyCallbackTests` sign in at `/login` (task 2.8), with users from `support/TestUsers`. `EnrollmentConcurrencyTests` races on `EnrollmentRules`.
 - The full suite has 124 tests (the old pages' and JWT tests went with them).
+- `schema.d.ts` regenerated from the pinned contract: only the app's 20 paths are left (the directory, staging, SSO and `/health` were in the fork's file). Type check and the app's 33 tests pass; the `web` job checks again that the types match the contract (task 4.1b).
 
 ## Next
 
-- Regenerate `schema.d.ts` from the pinned contract and put the "types match" check back in CI (task 4.1b).
 - Tell the module teams what changed (task 8.3). They do not register again.
 - In the release after: the V5 clean-ups (task 8.4).
 

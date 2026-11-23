@@ -23,7 +23,7 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 
 ## 4. Build and switch-over
 - [x] 4.1 Docker Node stage, CI `web` job (without the fork's "types match" check until `schema.d.ts` is regenerated from the pinned contract: 4.1b)
-- [ ] 4.1b Regenerate `web/apps/portal/src/api/schema.d.ts` with `npm run gen:api` (from the pinned contract) and add the "types match" check back to the `web` job
+- [x] 4.1b Regenerate `web/apps/portal/src/api/schema.d.ts` with `npm run gen:api` (from the pinned contract) and add the "types match" check back to the `web` job
 - [x] 4.2 Checked in a browser against the Java portal: sign-in return, catalogue, enroll, cancel, sign-out, every staff and inspector form, module secret, status change, teacher reject, phone width
 - [x] 4.3 Remove the old static pages and the JWT login (complete-java-portal task 2.6)
 - [ ] 4.4 Checked on staging after deploy: app, 401 JSON, package and stylesheet with CORS, missing asset 404
