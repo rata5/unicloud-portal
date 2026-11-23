@@ -48,7 +48,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] 3.4 Enrollment for the signed-in student only, current semester only (`app.current-semester`)
 - [x] 3.5 Teacher rejection (V7: `REJECTED`, `decided_by`); a rejected student cannot enroll again
 - [x] 3.6 Profile reads: ANY, FACULTY, ENROLLED, else 404
-- [ ] 3.7 Tests: accounts, profile access, enrollment rules, a mixed race in `EnrollmentConcurrencyTests` (done in `PortalApiTests`; the mixed race is left)
+- [x] 3.7 Tests: accounts, profile access, enrollment rules (`PortalApiTests`), a mixed race (`EnrollmentRulesRaceTests`)
 
 ## 4. SSO provider alignment
 - [x] 4.1 Discovery lists only what is served; revocation, introspection and device endpoints switched off
