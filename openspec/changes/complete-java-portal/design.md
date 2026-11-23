@@ -20,7 +20,7 @@ What the specs need and `main` does not have:
 - Teacher rejection, the current-semester rule, account creation pages, module registration on a page.
 - The `client_credentials` grant with the `directory` scope, and the directory API.
 - Narrower discovery, a plain 400 page where the library answers 401 with an empty body, `openid` required in `scope`, `client_id` in the access token.
-- The React UI over a HAL-FORMS API (separate change).
+- The React app's JSON API, with hypermedia added (separate change; the app itself is the UI owner's).
 
 ## Goals and non-goals
 - Goals: meet every requirement in this folder in the existing Spring Boot app. Any replica answers any request; all state is in the database. Keep `docs/sso.md` sections 1 to 10 working for modules, with no new registration. Keep MySQL (production) and PostgreSQL (staging).
@@ -30,7 +30,7 @@ What the specs need and `main` does not have:
 
 ```mermaid
 flowchart LR
-    B[Browser: React app at /app] -->|HAL-FORMS JSON, cookie, X-CSRF-Token| P
+    B[Browser: React app at /app] -->|JSON with _links/_templates, cookie, X-CSRF-Token| P
     L[Browser: /login, /password] -->|form posts, cookie| P
     M[Module backend] -->|/oauth2/token, /userinfo, /api/v1/directory| P
     subgraph P[Portal replica x N: one Spring Boot app]
@@ -57,7 +57,7 @@ catalog/       courses and offerings (today: controller/, service/, entity/ Cour
 enrollment/    enroll, cancel, reject, seat accounting (today: service/EnrollmentService)
 access/        Role, Permission, PortalUser (the signed-in user, loaded per request), permission checks
 directory/     /api/v1/directory handlers, the client-credentials validator
-portalapi/     HAL-FORMS resources for the app (react-hypermedia-ui change)
+portalapi/     the app's JSON API with its links and templates (react-hypermedia-ui change)
 sso/           as today, plus the discovery customizer and the plain 400 handler
 staging/       as today, plus faculty, DEAN and the directory grant
 ```

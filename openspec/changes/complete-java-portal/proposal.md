@@ -7,7 +7,7 @@ The requirements were first written for a Rust rewrite on the fork's `rust-rewri
 
 ## What changes
 - **BREAKING (internal only):** the portal's own JWT API (`/api/v1/auth/login`, `/api/v1/auth/sso-session`, `/api/v1/auth/me`, Bearer tokens with `aud=unicloud-api`) and the Bearer route `POST /api/v1/sso/clients` are removed. One cookie session replaces them ([ADR 0003](../../../docs/adr/0003-one-cookie-session.md)). No module uses them.
-- **BREAKING (internal only):** the old REST routes for the static pages (`/api/v1/courses`, `/api/v1/offerings`, `/api/v1/enrollments`, `/api/v1/students`, `/api/v1/users/me`, `/api/v1/auth/register`) are replaced by the HAL-FORMS portal API of the `react-hypermedia-ui` change. The static pages in `src/main/resources/static` go with them.
+- **BREAKING (internal only):** the old REST routes for the static pages (`/api/v1/courses`, `/api/v1/offerings`, `/api/v1/enrollments`, `/api/v1/students`, `/api/v1/users/me`, `/api/v1/auth/register`) are replaced by the app's JSON API of the `react-hypermedia-ui` change (the contract the React app on staging speaks, with hypermedia added). The static pages in `src/main/resources/static` go with them, once the app is served.
 - Added to the contract: role `DEAN`, permission `STUDENT_PROFILE_READ_FACULTY` (bit 10), the `faculty` claim, the `client_credentials` grant with the `directory` scope, and a read-only directory API.
 - Faculties and specialties become tables. Teachers, deans and inspectors belong to one faculty. A student's faculty comes from the specialty.
 - Enrollment: a request takes a free place at once, as today. The teacher may reject it, which frees the place.

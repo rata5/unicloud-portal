@@ -64,7 +64,11 @@ public class RequestLogFilter extends OncePerRequestFilter {
         }
     }
 
-    /** The SLO's route groups (docs/slo.md); everything else is "other". */
+    /**
+     * The SLO's route groups (docs/slo.md); everything else is "other". The /api/v1/portal paths are
+     * those of the app's contract (openspec/changes/react-hypermedia-ui/portal-api.openapi.json):
+     * enrolling is {@code /courses/{id}/enroll}, cancelling and rejecting are under /enrollments.
+     */
     static String routeGroup(String path) {
         if (path.equals("/login") || path.equals("/password") || path.equals("/api/v1/auth/login")) {
             return "sign-in";
@@ -77,7 +81,7 @@ public class RequestLogFilter extends OncePerRequestFilter {
             return "enrollment";
         }
         if (path.startsWith("/api/v1/courses") || path.startsWith("/api/v1/offerings")
-                || path.startsWith("/api/v1/portal/courses") || path.startsWith("/api/v1/portal/offerings")) {
+                || path.startsWith("/api/v1/portal/courses")) {
             return "catalogue";
         }
         if (path.equals("/oauth2/token")) {

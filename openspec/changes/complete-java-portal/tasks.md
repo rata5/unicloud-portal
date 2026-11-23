@@ -32,7 +32,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [ ] 2.3 `PortalUser` loaded per request; disabled users anonymous at once
 - [ ] 2.4 `DelegatingPasswordEncoder` with Argon2id; BCrypt hashes verify and are upgraded at sign-in; same timing for unknown emails
 - [ ] 2.5 `must_change_password` (column added by V6 in group 7) and `/password`; held back for pages, the API and `/oauth2/authorize`
-- [ ] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404
+- [ ] 2.6 Remove the portal JWT: `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/sso-session`, `POST /api/v1/sso/clients`, the `unicloud-api` resource server. Old routes answer 404. Only once the app is served and checked against the Java portal (react-hypermedia-ui task 4.3); until then the JWT login and the cookie session work side by side
 - [ ] 2.7 Staging routes answer 404 without the profile
 - [ ] 2.8 `SsoFlowTests` and the other suites sign in through `/login`; new session, CSRF and first-password tests
 - [ ] 2.9 Lands together with group 6's sign-in page and app shell, so there is always a working sign-in
@@ -69,7 +69,7 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] 5.4 `DirectoryTests`
 - [x] 5.5 `docs/sso.md`: the directory section, the troubleshooting rows, the production checklist line
 
-## 6. React UI over HAL-FORMS
+## 6. The React app's JSON API, with hypermedia added
 See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
 
 ## 7. Operations

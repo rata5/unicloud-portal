@@ -86,7 +86,10 @@ class RequestLogFilterTests {
         assertThat(RequestLogFilter.routeGroup("/api/v1/portal/profile")).isEqualTo("profile");
         assertThat(RequestLogFilter.routeGroup("/api/v1/offerings")).isEqualTo("catalogue");
         assertThat(RequestLogFilter.routeGroup("/api/v1/portal/courses")).isEqualTo("catalogue");
-        assertThat(RequestLogFilter.routeGroup("/api/v1/portal/offerings/7/enrollment")).isEqualTo("enrollment");
+        assertThat(RequestLogFilter.routeGroup("/api/v1/portal/courses/7/enroll")).isEqualTo("enrollment");
+        assertThat(RequestLogFilter.routeGroup("/api/v1/portal/enrollments/7/cancel")).isEqualTo("enrollment");
+        assertThat(RequestLogFilter.routeGroup("/api/v1/portal/teach/enrollments/7/reject")).isEqualTo("enrollment");
+        assertThat(RequestLogFilter.routeGroup("/api/v1/portal/students/4")).isEqualTo("profile");
         assertThat(RequestLogFilter.routeGroup("/api/v1/students/4/enrollments")).isEqualTo("enrollment");
         assertThat(RequestLogFilter.routeGroup("/oauth2/token")).isEqualTo("sso-token");
         assertThat(RequestLogFilter.routeGroup("/oauth2/authorize")).isEqualTo("sso");
