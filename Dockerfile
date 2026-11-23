@@ -1,3 +1,15 @@
+# Web stage: the React app (served at /app) and the @unicloud/ui package (served at /ui/v1), from
+# web/. glibc (bookworm), as on the fork: npm installs from this lockfile miss Rollup's native module
+# on musl. The Java build below copies the results in; ./mvnw verify itself never needs Node.
+FROM node:22-bookworm-slim AS web
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json ./
+COPY web/packages/ui/package.json packages/ui/
+COPY web/apps/portal/package.json apps/portal/
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build && npm run pack:ui && cp packages/ui/dist/unicloud.css dist-ui/unicloud.css
+
 # Build stage: package the app, then build a Java runtime that holds only the modules it uses.
 # Alpine (musl) on both stages, because a jlink runtime only runs on the libc it was built for.
 FROM eclipse-temurin:25-jdk-alpine AS build
@@ -6,6 +18,9 @@ COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
 COPY src/ src/
+# The built app and the UI package become static files of the jar (AppHostingController)
+COPY --from=web /src/web/apps/portal/dist/ src/main/resources/static/app/
+COPY --from=web /src/web/dist-ui/ src/main/resources/static/ui/v1/
 RUN ./mvnw -B -q -DskipTests package && cp target/*.jar app.jar
 
 # Split the fat jar into Spring Boot's layers (dependencies change rarely, application on every

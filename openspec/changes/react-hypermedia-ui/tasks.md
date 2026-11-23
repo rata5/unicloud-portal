@@ -12,8 +12,8 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 - [x] 2.2 `portalapi`: every operation of the contract, with its fields and status codes (session, profiles, catalogue, enrollment, teaching, dean, inspection, admin)
 - [ ] 2.3 `Hypermedia` helper; `_links` and `_templates` as in design.md, each from the same rule the handler enforces
 - [x] 2.4 JSON errors (`{error, message}`), JSON CSRF failures, `no-store` on module registration and errors
-- [ ] 2.5 `/app` with the `index.html` fallback, `/ui/v1` with CORS, cache headers
-- [ ] 2.6 Sign-in `next` return path; `/` sends signed-in browsers to `/app/`
+- [x] 2.5 `/app` with the `index.html` fallback, `/ui/v1` with CORS, cache headers
+- [x] 2.6 Sign-in `next` return path; `/` sends signed-in browsers to `/app/` (every browser at `/` goes to `/app/`; the app sends one without a session to sign-in)
 - [ ] 2.7 `PortalApiContractTests` (JSON Schema validator, test scope), `PortalHypermediaTests`, permission and hosting tests (done: `PortalApiTests` with `PortalContract`, a small checker of the pinned file instead of a validator library; hypermedia and hosting tests come with 2.3 and 2.5)
 
 ## 3. Frontend (UI owner)
@@ -22,7 +22,8 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 - [ ] 3.3 Move navigation, buttons and forms to the links and templates, page by page
 
 ## 4. Build and switch-over
-- [ ] 4.1 Docker Node stage, CI `web` job
+- [x] 4.1 Docker Node stage, CI `web` job (without the fork's "types match" check until `schema.d.ts` is regenerated from the pinned contract: 4.1b)
+- [ ] 4.1b Regenerate `web/apps/portal/src/api/schema.d.ts` with `npm run gen:api` (from the pinned contract) and add the "types match" check back to the `web` job
 - [ ] 4.2 Checked in a browser against the Java portal: sign-in return, catalogue, enroll, cancel, sign-out, every staff and inspector form, module secret, status change, teacher reject, phone width
 - [ ] 4.3 Remove the old static pages and the JWT login (complete-java-portal task 2.6)
 - [ ] 4.4 Checked on staging after deploy: app, 401 JSON, package and stylesheet with CORS, missing asset 404

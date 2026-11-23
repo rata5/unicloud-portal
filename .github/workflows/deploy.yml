@@ -86,8 +86,33 @@ jobs:
           chmod +x mvnw
           ./mvnw -B verify
 
+  # The React app and @unicloud/ui (web/): types, tests and the build. The fork also checked that
+  # the API types match the contract (npm run gen:api); that check returns once schema.d.ts has
+  # been regenerated from openspec/changes/react-hypermedia-ui/portal-api.openapi.json.
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npm run typecheck
+      - name: Test (components and app)
+        run: npm test
+      - name: Build (app and package)
+        run: npm run build && npm run pack:ui
+
   build:
-    needs: test
+    needs: [test, web]
     runs-on: ubuntu-latest
     permissions:
       contents: read
