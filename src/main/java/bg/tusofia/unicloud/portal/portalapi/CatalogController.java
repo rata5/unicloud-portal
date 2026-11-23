@@ -49,6 +49,8 @@ public class CatalogController {
         String search = q.strip().toLowerCase(Locale.ROOT);
         String like = "%" + search + "%";
         String facultyCode = faculty.strip().toUpperCase(Locale.ROOT);
+        boolean mayRequest = user.has(Permission.ENROLLMENT_REQUEST_CREATE);
+        boolean active = mayRequest && enrollment.isActiveStudent(user.id());
         return jdbc.query("""
                 SELECT o.id, c.code, c.title, c.ects_credits AS ects, c.faculty_code AS faculty,
                        CONCAT(t.first_name, ' ', t.last_name) AS teacher,
@@ -72,7 +74,14 @@ public class CatalogController {
             offering.put("enrolled", rs.getInt("enrolled"));
             offering.put("capacity", rs.getInt("capacity"));
             offering.put("my_status", rs.getString("my_status"));
-            return offering;
+            // The form only where the request would succeed: the same rule enroll applies
+            Hypermedia controls = Hypermedia.controls();
+            if (mayRequest && enrollment.refusal(active, rs.getString("my_status"), true, enrollment.currentSemester(),
+                    rs.getInt("enrolled"), rs.getInt("capacity")) == null) {
+                controls.template("enroll", Hypermedia.form("Запиши се", "POST",
+                        Hypermedia.API + "/courses/" + rs.getLong("id") + "/enroll"));
+            }
+            return controls.on(offering);
         }, user.id(), enrollment.currentSemester(), search, like, like, facultyCode, facultyCode);
     }
 
@@ -108,7 +117,12 @@ public class CatalogController {
             item.put("semester", rs.getString("semester"));
             item.put("teacher", rs.getString("teacher"));
             item.put("status", rs.getString("status"));
-            return item;
+            Hypermedia controls = Hypermedia.controls();
+            if ("ENROLLED".equals(rs.getString("status"))) {
+                controls.template("cancel", Hypermedia.form("Отпиши се", "POST",
+                        Hypermedia.API + "/enrollments/" + rs.getLong("id") + "/cancel"));
+            }
+            return controls.on(item);
         }, user.id());
     }
 

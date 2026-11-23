@@ -55,6 +55,11 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - `AccountCreation`: inspectors create students, admins create staff, all with a first password to change; only an admin makes an admin.
 - Tests: `PortalApiTests` (7, every role, every answer checked against the pinned contract by `PortalContract`), `PortalContractTests`; the full suite has 124 tests.
 
+### Step 3 done (2026-11-23)
+- `/app` and `/ui/v1` served (`AppHostingController`, ported from `spa.rs`); a browser at `/` goes to `/app/`. Docker builds `web/` in a Node stage; CI has a `web` job.
+- HAL-FORMS `_links` and `_templates` on every answer of the app's API (`Hypermedia`), as in the UI design: navigation links on `/me`, forms for list actions on `/me`, `enroll`, `cancel`, `reject`, `setStatus`, `toggle`, `createCourse`, `createOffering`, each only while it would succeed (the enroll form uses the same rule as the handler, `EnrollmentRules.refusal`).
+- Tests: `AppHostingTests`, and in `PortalApiTests` the links and forms per role and per state, and that every form targets an operation of the pinned contract; the full suite has 133 tests.
+
 ## Next
 
 - Group 8: `docs/sso.md` ("How the portal does it"), README.

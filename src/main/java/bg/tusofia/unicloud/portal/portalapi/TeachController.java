@@ -63,7 +63,10 @@ public class TeachController {
     @GetMapping("/teach/offerings")
     public List<Map<String, Object>> offerings(PortalUser user) {
         PortalApiException.require(user, Permission.ENROLLMENT_REQUEST_ACCEPT_REJECT);
-        return jdbc.query(TEACH_SELECT + " ORDER BY o.semester DESC, c.code", TEACH_OFFERING, user.id());
+        List<Map<String, Object>> offerings = jdbc.query(TEACH_SELECT + " ORDER BY o.semester DESC, c.code", TEACH_OFFERING, user.id());
+        offerings.forEach(offering -> Hypermedia.controls()
+                .link("roster", Hypermedia.API + "/teach/offerings/" + offering.get("id")).on(offering));
+        return offerings;
     }
 
     /** Only the offering's own teacher sees its roster; anyone else gets 404. */
@@ -86,12 +89,20 @@ public class TeachController {
             entry.put("name", rs.getString("name"));
             entry.put("faculty_number", rs.getString("faculty_number"));
             entry.put("status", rs.getString("status"));
-            return entry;
+            Hypermedia controls = Hypermedia.controls().link("student", Hypermedia.API + "/students/" + rs.getLong("student_id"));
+            if ("ENROLLED".equals(rs.getString("status"))) {
+                controls.template("reject", Hypermedia.form("Откажи", "POST",
+                        Hypermedia.API + "/teach/enrollments/" + rs.getLong("enrollment_id") + "/reject"));
+            }
+            return controls.on(entry);
         }, id);
         Map<String, Object> answer = new LinkedHashMap<>();
         answer.put("offering", offering.getFirst());
         answer.put("roster", roster);
-        return answer;
+        return Hypermedia.controls()
+                .link("self", Hypermedia.API + "/teach/offerings/" + id)
+                .link("teaching", Hypermedia.API + "/teach/offerings")
+                .on(answer);
     }
 
     @PostMapping("/teach/enrollments/{id}/reject")
@@ -137,13 +148,13 @@ public class TeachController {
             student.put("specialty", rs.getString("specialty"));
             student.put("study_year", rs.getInt("study_year"));
             student.put("status", rs.getString("status"));
-            return student;
+            return Hypermedia.controls().link("student", Hypermedia.API + "/students/" + rs.getLong("id")).on(student);
         }, faculty.code());
         Map<String, Object> answer = new LinkedHashMap<>();
         answer.put("faculty", Map.of("code", faculty.code(), "name", faculty.name()));
         answer.put("semester", enrollment.currentSemester());
         answer.put("offerings", offerings);
         answer.put("students", students);
-        return answer;
+        return Hypermedia.controls().link("self", Hypermedia.API + "/faculty").on(answer);
     }
 }

@@ -297,6 +297,70 @@ class PortalApiTests {
         assertThat(helper.get(API + "/admin/modules").status()).as("modules are the admin role's").isEqualTo(403);
     }
 
+    @Test
+    void linksAndFormsFollowWhatEachUserMayDoNow() throws Exception {
+        School school = newSchool();
+        long offering = school.offering(1);
+
+        JsonNode studentMe = school.student().get(API + "/me").json();
+        assertThat(names(studentMe.get("_links"))).contains("self", "profile", "courses", "enrollments")
+                .doesNotContain("staff", "modules", "students", "catalogue", "faculty", "teaching");
+        assertThat(names(studentMe.get("_templates"))).containsExactly("logout");
+        assertThat(names(school.dean().get(API + "/me").json().get("_links"))).contains("faculty", "student");
+        assertThat(names(school.admin().get(API + "/me").json().get("_templates")))
+                .contains("createStaff", "registerModule").doesNotContain("createStudent");
+
+        JsonNode createStudent = school.inspector().get(API + "/me").json().get("_templates").get("createStudent");
+        assertThat(createStudent.get("method").asString()).isEqualTo("POST");
+        assertThat(createStudent.get("target").asString()).isEqualTo(API + "/inspect/students");
+        List<String> fields = new ArrayList<>();
+        createStudent.get("properties").forEach(p -> fields.add(p.get("name").asString()));
+        assertThat(fields).containsExactly("email", "first_name", "last_name", "faculty_number", "specialty_id",
+                "study_year", "password");
+        assertThat(createStudent.toString()).contains("\"value\":" + school.specialtyId());
+
+        // enroll: offered only where the request would succeed, and its target works
+        JsonNode enroll = find(school.student().get(API + "/courses").json(), "id", offering).get("_templates").get("enroll");
+        assertThat(enroll.get("target").asString()).isEqualTo(API + "/courses/" + offering + "/enroll");
+        assertThat(school.student().post(enroll.get("target").asString(), null).status()).isEqualTo(200);
+        assertThat(find(school.student().get(API + "/courses").json(), "id", offering).has("_templates"))
+                .as("already enrolled").isFalse();
+        assertThat(find(school.secondStudent().get(API + "/courses").json(), "id", offering).has("_templates"))
+                .as("full").isFalse();
+        JsonNode mine = find(school.student().get(API + "/enrollments").json(), "code", school.course());
+        assertThat(mine.get("_templates").get("cancel").get("target").asString())
+                .isEqualTo(API + "/enrollments/" + mine.get("id").asLong() + "/cancel");
+
+        school.inspector().put(API + "/inspect/students/" + school.secondStudentId() + "/status", "{\"status\": \"INTERRUPTED\"}");
+        long open = school.otherOffering(30);
+        assertThat(find(school.secondStudent().get(API + "/courses").json(), "id", open).has("_templates"))
+                .as("not an active student").isFalse();
+        assertThat(find(school.student().get(API + "/courses").json(), "id", open).get("_templates").has("enroll")).isTrue();
+
+        // The teacher's roster: a link per student, reject on each ENROLLED one
+        JsonNode taught = find(school.teacher().get(API + "/teach/offerings").json(), "id", offering);
+        assertThat(taught.get("_links").get("roster").get("href").asString()).isEqualTo(API + "/teach/offerings/" + offering);
+        JsonNode entry = school.teacher().get(API + "/teach/offerings/" + offering).json().get("roster").get(0);
+        assertThat(entry.get("_templates").has("reject")).isTrue();
+        assertThat(entry.get("_links").get("student").get("href").asString()).isEqualTo(API + "/students/" + school.studentId());
+
+        // Staff: a toggle on everyone but oneself; the inspector's forms on the catalogue
+        JsonNode staff = school.admin().get(API + "/admin/staff").json();
+        assertThat(find(staff, "sub", school.adminId()).has("_templates")).isFalse();
+        assertThat(find(staff, "sub", school.teacherId()).get("_templates").has("toggle")).isTrue();
+        JsonNode catalogue = school.inspector().get(API + "/inspect/courses").json();
+        assertThat(names(catalogue.get("_templates"))).containsExactly("createCourse", "createOffering");
+        assertThat(find(catalogue.get("offerings"), "id", offering).get("_templates").has("toggle")).isTrue();
+
+        // Every template of every answer is an operation of the contract (or a server page)
+        for (JsonNode answer : List.of(studentMe, school.inspector().get(API + "/me").json(), school.admin().get(API + "/me").json(),
+                school.student().get(API + "/courses").json(), school.student().get(API + "/enrollments").json(),
+                school.teacher().get(API + "/teach/offerings/" + offering).json(), staff, catalogue,
+                school.inspector().get(API + "/inspect/students").json())) {
+            assertTemplatesAreOperations(answer);
+        }
+    }
+
     // ---- a faculty with one person of every role ----
 
     private final class School {
@@ -350,6 +414,19 @@ class PortalApiTests {
             return jdbc.queryForObject("""
                     SELECT o.id FROM course_offerings o JOIN courses c ON c.id = o.course_id
                     WHERE c.code = ? AND o.semester = ?""", Long.class, course, SEMESTER);
+        }
+
+        /** Another offering of a second course of the school, open, in the current semester. */
+        long otherOffering(int capacity) throws Exception {
+            String other = course + "B";
+            inspector.post(API + "/inspect/courses", """
+                    {"code": "%s", "title": "Втори курс", "ects_credits": 4, "faculty_code": "%s"}""".formatted(other, faculty));
+            assertThat(inspector.post(API + "/inspect/offerings", """
+                    {"course_code": "%s", "semester": "%s", "teacher_sub": "%d", "capacity": %d}"""
+                    .formatted(other, SEMESTER, teacherId, capacity)).status()).isEqualTo(201);
+            return jdbc.queryForObject("""
+                    SELECT o.id FROM course_offerings o JOIN courses c ON c.id = o.course_id
+                    WHERE c.code = ? AND o.semester = ?""", Long.class, other, SEMESTER);
         }
 
         PortalBrowser userWith(String role, String permissions) throws Exception {
@@ -423,6 +500,40 @@ class PortalApiTests {
             }
         }
         throw new AssertionError("no item with " + field + " = " + value + " in " + list);
+    }
+
+    private static List<String> names(JsonNode object) {
+        List<String> names = new ArrayList<>();
+        if (object != null) {
+            object.properties().forEach(property -> names.add(property.getKey()));
+        }
+        return names;
+    }
+
+    /** Walks an answer: every _templates entry with an API target names an operation of the contract. */
+    private static void assertTemplatesAreOperations(JsonNode node) {
+        if (node.isArray()) {
+            node.forEach(PortalApiTests::assertTemplatesAreOperations);
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        if (node.has("_templates")) {
+            node.get("_templates").properties().forEach(entry -> {
+                String target = entry.getValue().get("target").asString();
+                String method = entry.getValue().get("method").asString();
+                if (target.startsWith(API)) {
+                    assertThat(bg.tusofia.unicloud.portal.support.PortalContract.isOperation(method, target))
+                            .as("%s template: %s %s is in the contract", entry.getKey(), method, target).isTrue();
+                }
+            });
+        }
+        node.properties().forEach(property -> {
+            if (!property.getKey().equals("_templates")) {
+                assertTemplatesAreOperations(property.getValue());
+            }
+        });
     }
 
     private static String number() {

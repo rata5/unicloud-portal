@@ -60,8 +60,7 @@ public class EnrollmentRules {
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Outcome enroll(long studentId, long offeringId) {
-        List<String> status = jdbc.queryForList("SELECT status FROM students WHERE user_id = ?", String.class, studentId);
-        if (status.isEmpty() || !"ACTIVE".equals(status.getFirst())) {
+        if (!isActiveStudent(studentId)) {
             return Outcome.NOT_ACTIVE;
         }
         // Locks the offering: requests for it take turns from here to the commit
@@ -73,18 +72,12 @@ public class EnrollmentRules {
         List<String> existing = jdbc.queryForList(
                 "SELECT status FROM enrollments WHERE student_id = ? AND offering_id = ?", String.class,
                 studentId, offeringId);
-        if (!existing.isEmpty() && "ENROLLED".equals(existing.getFirst())) {
-            return Outcome.ALREADY_ENROLLED;
-        }
-        if (!existing.isEmpty() && "REJECTED".equals(existing.getFirst())) {
-            return Outcome.REJECTED;
-        }
         Map<String, Object> row = offering.getFirst();
-        if (!Boolean.TRUE.equals(asBoolean(row.get("is_open"))) || !currentSemester.equals(row.get("semester"))) {
-            return Outcome.CLOSED;
-        }
-        if (taken(offeringId) >= ((Number) row.get("capacity")).intValue()) {
-            return Outcome.FULL;
+        Outcome refused = refusal(true, existing.isEmpty() ? null : existing.getFirst(),
+                Boolean.TRUE.equals(asBoolean(row.get("is_open"))), (String) row.get("semester"),
+                taken(offeringId), ((Number) row.get("capacity")).intValue());
+        if (refused != null) {
+            return refused;
         }
         try {
             if (existing.isEmpty()) {
@@ -101,6 +94,39 @@ public class EnrollmentRules {
             return Outcome.ALREADY_ENROLLED;
         }
         return Outcome.ENROLLED;
+    }
+
+    /**
+     * The rule for a request, given what is known: why it would be refused, or null when it would
+     * be accepted. {@link #enroll} applies it under the offering's lock; the catalogue uses it to
+     * offer the enroll form only where it would succeed (react-hypermedia-ui spec).
+     *
+     * @param existingStatus the student's enrollment in the offering, or null
+     */
+    public Outcome refusal(boolean studentActive, String existingStatus, boolean open, String semester,
+                           int taken, int capacity) {
+        if (!studentActive) {
+            return Outcome.NOT_ACTIVE;
+        }
+        if ("ENROLLED".equals(existingStatus)) {
+            return Outcome.ALREADY_ENROLLED;
+        }
+        if ("REJECTED".equals(existingStatus)) {
+            return Outcome.REJECTED;
+        }
+        if (!open || !currentSemester.equals(semester)) {
+            return Outcome.CLOSED;
+        }
+        if (taken >= capacity) {
+            return Outcome.FULL;
+        }
+        return null;
+    }
+
+    /** Whether the student may request places at all: an ACTIVE academic record. */
+    public boolean isActiveStudent(long studentId) {
+        List<String> status = jdbc.queryForList("SELECT status FROM students WHERE user_id = ?", String.class, studentId);
+        return !status.isEmpty() && "ACTIVE".equals(status.getFirst());
     }
 
     /** The student cancels their own ENROLLED enrollment; false when there is none to cancel. */

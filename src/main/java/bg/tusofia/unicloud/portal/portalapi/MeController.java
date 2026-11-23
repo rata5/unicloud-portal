@@ -55,12 +55,95 @@ public class MeController {
         me.put("faculty", profile.get("faculty"));
         me.put("permissions", user.permissions().stream().map(Permission::name).toList());
 
+        String csrf = SignInController.csrfToken(request);
         Map<String, Object> answer = new LinkedHashMap<>();
         answer.put("user", me);
-        answer.put("csrf", SignInController.csrfToken(request));
+        answer.put("csrf", csrf);
         answer.put("semester", semester);
         answer.put("nav", nav(user));
-        return answer;
+        return entryControls(user, csrf).on(answer);
+    }
+
+    /**
+     * The entry point's links (one per page the user may open, as in nav) and the templates for
+     * actions on whole lists (react-hypermedia-ui design, "Hypermedia on top").
+     */
+    private Hypermedia entryControls(PortalUser user, String csrf) {
+        Hypermedia controls = Hypermedia.controls()
+                .link("self", Hypermedia.API + "/me")
+                .link("options", Hypermedia.API + "/options");
+        if (user.has(Permission.STUDENT_PROFILE_READ_OWN)) {
+            controls.link("profile", Hypermedia.API + "/profile");
+        }
+        if (user.has(Permission.COURSE_OFFERING_READ)) {
+            controls.templatedLink("courses", Hypermedia.API + "/courses{?q,faculty}");
+        }
+        if (user.has(Permission.ENROLLMENT_REQUEST_CREATE)) {
+            controls.link("enrollments", Hypermedia.API + "/enrollments");
+        }
+        if (user.has(Permission.ENROLLMENT_REQUEST_ACCEPT_REJECT)) {
+            controls.link("teaching", Hypermedia.API + "/teach/offerings");
+        }
+        if (user.has(Permission.STUDENT_PROFILE_READ_FACULTY)) {
+            controls.link("faculty", Hypermedia.API + "/faculty");
+        }
+        if (user.has(Permission.STUDENT_CREATE) || user.has(Permission.STUDENT_PROFILE_READ_ANY)) {
+            controls.templatedLink("students", Hypermedia.API + "/inspect/students{?q}");
+        }
+        if (user.has(Permission.COURSE_CREATE_MODIFY) || user.has(Permission.COURSE_OFFERING_CREATE_MODIFY)) {
+            controls.link("catalogue", Hypermedia.API + "/inspect/courses");
+        }
+        if (user.has(Permission.STAFF_CREATE)) {
+            controls.link("staff", Hypermedia.API + "/admin/staff");
+        }
+        if (user.role() == Role.ADMIN) {
+            controls.link("modules", Hypermedia.API + "/admin/modules");
+        }
+        if (user.has(Permission.STUDENT_PROFILE_READ_ANY) || user.has(Permission.STUDENT_PROFILE_READ_FACULTY)
+                || user.has(Permission.STUDENT_PROFILE_READ_ENROLLED)) {
+            controls.templatedLink("student", Hypermedia.API + "/students/{sub}");
+        }
+        controls.template("logout", Hypermedia.form("Изход", "POST", "/logout")
+                .contentType("application/x-www-form-urlencoded")
+                .property(Hypermedia.field("csrf", "").type("hidden").value(csrf)));
+        if (user.has(Permission.STUDENT_CREATE)) {
+            controls.template("createStudent", Hypermedia.form("Нов студент", "POST", Hypermedia.API + "/inspect/students")
+                    .property(Hypermedia.field("email", "Имейл").required().type("email").length(0, 254))
+                    .property(Hypermedia.field("first_name", "Име").required().length(0, 100))
+                    .property(Hypermedia.field("last_name", "Фамилия").required().length(0, 100))
+                    .property(Hypermedia.field("faculty_number", "Факултетен номер").required().length(0, 20))
+                    .property(Hypermedia.field("specialty_id", "Специалност").required().options(
+                            academicStructure.specialties().stream()
+                                    .map(s -> Hypermedia.choice(s.facultyCode() + " · " + s.name(), s.id())).toList()))
+                    .property(Hypermedia.field("study_year", "Курс").required().range(1, 6))
+                    .property(Hypermedia.field("password", "Начална парола").required().type("password").length(8, 72)));
+        }
+        if (user.has(Permission.STAFF_CREATE)) {
+            List<Map<String, Object>> roles = new ArrayList<>();
+            for (Role role : List.of(Role.TEACHER, Role.DEAN, Role.INSPECTOR, Role.ADMIN)) {
+                if (role != Role.ADMIN || user.role() == Role.ADMIN) {
+                    roles.add(Hypermedia.choice(roleLabel(role), role.name()));
+                }
+            }
+            controls.template("createStaff", Hypermedia.form("Нов служител", "POST", Hypermedia.API + "/admin/staff")
+                    .property(Hypermedia.field("email", "Имейл").required().type("email").length(0, 254))
+                    .property(Hypermedia.field("first_name", "Име").required().length(0, 100))
+                    .property(Hypermedia.field("last_name", "Фамилия").required().length(0, 100))
+                    .property(Hypermedia.field("role", "Роля").required().options(roles))
+                    .property(Hypermedia.field("faculty_code", "Факултет (за преподавател, декан и инспектор)").options(
+                            academicStructure.faculties().stream()
+                                    .map(f -> Hypermedia.choice(f.code() + " · " + f.name(), f.code())).toList()))
+                    .property(Hypermedia.field("password", "Начална парола").required().type("password").length(8, 72)));
+        }
+        if (user.role() == Role.ADMIN) {
+            controls.template("registerModule", Hypermedia.form("Регистрирай модул", "POST", Hypermedia.API + "/admin/modules")
+                    .property(Hypermedia.field("clientId", "Client ID").required().regex("[a-z0-9][a-z0-9-]{1,62}"))
+                    .property(Hypermedia.field("name", "Име").required().length(1, 200))
+                    .property(Hypermedia.field("redirectUris", "Адреси за връщане").required().type("textarea"))
+                    .property(Hypermedia.field("postLogoutRedirectUris", "Адреси след изход").type("textarea"))
+                    .property(Hypermedia.field("directory", "Достъп до директорията").type("checkbox")));
+        }
+        return controls;
     }
 
     @GetMapping("/options")
@@ -81,7 +164,8 @@ public class MeController {
 
     @GetMapping("/profile")
     public Map<String, Object> profile(PortalUser user) {
-        return userClaims.profile(String.valueOf(user.id())).orElseThrow(PortalApiException::notFound);
+        return Hypermedia.controls().link("self", Hypermedia.API + "/profile")
+                .on(userClaims.profile(String.valueOf(user.id())).orElseThrow(PortalApiException::notFound));
     }
 
     /**
@@ -110,7 +194,8 @@ public class MeController {
         if (!allowed) {
             throw PortalApiException.notFound();
         }
-        return userClaims.profile(String.valueOf(sub)).orElseThrow(PortalApiException::notFound);
+        return Hypermedia.controls().link("self", Hypermedia.API + "/students/" + sub)
+                .on(userClaims.profile(String.valueOf(sub)).orElseThrow(PortalApiException::notFound));
     }
 
     /** The role in Bulgarian, as the app shows it. */

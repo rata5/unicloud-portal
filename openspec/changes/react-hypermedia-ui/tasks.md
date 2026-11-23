@@ -10,7 +10,7 @@ Same branch and pull request as `complete-java-portal`, where this is group 6. T
 ## 2. Backend
 - [ ] 2.1 `spring-boot-starter-thymeleaf`; sign-in, password change, logout confirmation and error pages in Bulgarian, with the `csrf` form field
 - [x] 2.2 `portalapi`: every operation of the contract, with its fields and status codes (session, profiles, catalogue, enrollment, teaching, dean, inspection, admin)
-- [ ] 2.3 `Hypermedia` helper; `_links` and `_templates` as in design.md, each from the same rule the handler enforces
+- [x] 2.3 `Hypermedia` helper; `_links` and `_templates` as in design.md, each from the same rule the handler enforces
 - [x] 2.4 JSON errors (`{error, message}`), JSON CSRF failures, `no-store` on module registration and errors
 - [x] 2.5 `/app` with the `index.html` fallback, `/ui/v1` with CORS, cache headers
 - [x] 2.6 Sign-in `next` return path; `/` sends signed-in browsers to `/app/` (every browser at `/` goes to `/app/`; the app sends one without a session to sign-in)

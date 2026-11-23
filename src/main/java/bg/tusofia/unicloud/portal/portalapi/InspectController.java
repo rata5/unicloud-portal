@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.portalapi;
 
+import bg.tusofia.unicloud.portal.enrollment.EnrollmentRules;
 import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
 import bg.tusofia.unicloud.portal.accounts.application.AccountCreation;
 import bg.tusofia.unicloud.portal.accounts.application.PortalUser;
@@ -70,11 +71,18 @@ public class InspectController {
     private final JdbcTemplate jdbc;
     private final AccountCreation accounts;
     private final AcademicStructure academicStructure;
+    private final EnrollmentRules enrollment;
 
-    public InspectController(JdbcTemplate jdbc, AccountCreation accounts, AcademicStructure academicStructure) {
+    public InspectController(JdbcTemplate jdbc, AccountCreation accounts, AcademicStructure academicStructure,
+                             EnrollmentRules enrollment) {
         this.jdbc = jdbc;
         this.accounts = accounts;
         this.academicStructure = academicStructure;
+        this.enrollment = enrollment;
+    }
+
+    private String currentSemester() {
+        return enrollment.currentSemester();
     }
 
     /** At most 300 students; {@code q} searches name, faculty number and email. */
@@ -85,6 +93,7 @@ public class InspectController {
         }
         String search = q.strip().toLowerCase(Locale.ROOT);
         String like = "%" + search + "%";
+        boolean mayChangeStatus = user.has(Permission.STUDENT_CREATE);
         return jdbc.query("""
                 SELECT u.id, CONCAT(u.first_name, ' ', u.last_name) AS name, u.email, s.faculty_number,
                        CASE WHEN sp.id IS NULL THEN s.specialty ELSE CONCAT(sp.faculty_code, ' · ', sp.name) END AS specialty,
@@ -102,7 +111,16 @@ public class InspectController {
             student.put("specialty", rs.getString("specialty"));
             student.put("study_year", rs.getInt("study_year"));
             student.put("status", rs.getString("status"));
-            return student;
+            Hypermedia controls = Hypermedia.controls().link("student", Hypermedia.API + "/students/" + rs.getLong("id"));
+            if (mayChangeStatus) {
+                controls.template("setStatus", Hypermedia.form("Смени статуса", "PUT",
+                                Hypermedia.API + "/inspect/students/" + rs.getLong("id") + "/status")
+                        .property(Hypermedia.field("status", "Статус").required().value(rs.getString("status")).options(List.of(
+                                Hypermedia.choice("действащ", "ACTIVE"),
+                                Hypermedia.choice("прекъснал", "INTERRUPTED"),
+                                Hypermedia.choice("дипломиран", "GRADUATED")))));
+            }
+            return controls.on(student);
         }, search, like, like, like, MAX_STUDENTS);
     }
 
@@ -159,7 +177,12 @@ public class InspectController {
             offering.put("enrolled", rs.getInt("enrolled"));
             offering.put("capacity", rs.getInt("capacity"));
             offering.put("is_open", rs.getBoolean("is_open"));
-            return offering;
+            Hypermedia controls = Hypermedia.controls();
+            if (user.has(Permission.COURSE_OFFERING_CREATE_MODIFY)) {
+                controls.template("toggle", Hypermedia.form(rs.getBoolean("is_open") ? "Затвори записването" : "Отвори записването",
+                        "POST", Hypermedia.API + "/inspect/offerings/" + rs.getLong("id") + "/toggle"));
+            }
+            return controls.on(offering);
         });
         List<Map<String, Object>> teachers = jdbc.query("""
                 SELECT id, CONCAT(last_name, ' ', first_name) AS name, faculty_code
@@ -175,7 +198,26 @@ public class InspectController {
         answer.put("courses", courses);
         answer.put("offerings", offerings);
         answer.put("teachers", teachers);
-        return answer;
+        Hypermedia controls = Hypermedia.controls().link("self", Hypermedia.API + "/inspect/courses");
+        if (user.has(Permission.COURSE_CREATE_MODIFY)) {
+            controls.template("createCourse", Hypermedia.form("Нова дисциплина", "POST", Hypermedia.API + "/inspect/courses")
+                    .property(Hypermedia.field("code", "Код").required().regex("[A-Za-z0-9-]{1,16}"))
+                    .property(Hypermedia.field("title", "Наименование").required().length(1, 200))
+                    .property(Hypermedia.field("ects_credits", "ECTS кредити").required().range(1, 30))
+                    .property(Hypermedia.field("faculty_code", "Факултет").required().options(academicStructure.faculties().stream()
+                            .map(f -> Hypermedia.choice(f.code() + " · " + f.name(), f.code())).toList())));
+        }
+        if (user.has(Permission.COURSE_OFFERING_CREATE_MODIFY)) {
+            controls.template("createOffering", Hypermedia.form("Нов курс", "POST", Hypermedia.API + "/inspect/offerings")
+                    .property(Hypermedia.field("course_code", "Дисциплина").required().options(courses.stream()
+                            .map(c -> Hypermedia.choice(c.get("code") + " · " + c.get("title"), c.get("code"))).toList()))
+                    .property(Hypermedia.field("semester", "Семестър").required().length(1, 16).value(currentSemester()))
+                    .property(Hypermedia.field("teacher_sub", "Преподавател").required().options(teachers.stream()
+                            .map(t -> Hypermedia.choice(t.get("name") + (t.get("faculty") == null ? "" : " · " + t.get("faculty")),
+                                    t.get("sub"))).toList()))
+                    .property(Hypermedia.field("capacity", "Места").required().range(1, 32767)));
+        }
+        return controls.on(answer);
     }
 
     @PostMapping("/courses")

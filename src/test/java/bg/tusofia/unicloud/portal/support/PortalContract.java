@@ -38,6 +38,20 @@ public final class PortalContract {
         assertThat(problems).as("answer of %s %s against the contract", method, path).isEmpty();
     }
 
+    /**
+     * Whether {@code method} on a concrete path (ids filled in) is an operation of the contract,
+     * for example POST /api/v1/portal/courses/7/enroll.
+     */
+    public static boolean isOperation(String method, String concretePath) {
+        for (var path : CONTRACT.path("paths").properties()) {
+            String pattern = path.getKey().replaceAll("\\{[^/]+}", "[^/]+");
+            if (concretePath.matches(pattern) && path.getValue().has(method.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void matches(JsonNode schema, JsonNode value, String where, List<String> problems) {
         schema = resolve(schema);
         if (value == null || value.isNull()) {

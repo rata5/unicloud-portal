@@ -75,7 +75,12 @@ public class AdminController {
             member.put("role", rs.getString("role"));
             member.put("faculty", rs.getString("faculty_code"));
             member.put("enabled", rs.getBoolean("enabled"));
-            return member;
+            Hypermedia controls = Hypermedia.controls();
+            if (rs.getLong("id") != user.id()) {
+                controls.template("toggle", Hypermedia.form(rs.getBoolean("enabled") ? "Спри профила" : "Включи профила",
+                        "POST", Hypermedia.API + "/admin/staff/" + rs.getLong("id") + "/toggle"));
+            }
+            return controls.on(member);
         });
     }
 
