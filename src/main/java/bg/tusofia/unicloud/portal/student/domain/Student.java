@@ -7,6 +7,9 @@ public class Student {
 
     private final Long userId;
     private final String facultyNumber;
+    // The specialty's id (V5) and its name. The name is still stored too, for replicas that
+    // predate V5; a later release drops it.
+    private final Integer specialtyId;
     private final String specialty;
     private int studyYear;
     private StudentStatus status;
@@ -14,6 +17,7 @@ public class Student {
     private Student(
             Long userId,
             String facultyNumber,
+            Integer specialtyId,
             String specialty,
             int studyYear,
             StudentStatus status) {
@@ -23,6 +27,8 @@ public class Student {
 
         this.facultyNumber = requireNonBlank(
                 facultyNumber, "Faculty number");
+
+        this.specialtyId = specialtyId;
 
         this.specialty = requireNonBlank(
                 specialty, "Specialty");
@@ -34,24 +40,22 @@ public class Student {
                 status, "Student status is required");
     }
 
+    /** A new, active student of a known specialty. */
     public static Student createNew(
             Long userId,
             String facultyNumber,
+            int specialtyId,
             String specialty,
             int studyYear) {
 
-        return new Student(
-                userId,
-                facultyNumber,
-                specialty,
-                studyYear,
-                StudentStatus.ACTIVE
-        );
+        return createNew(userId, facultyNumber, specialtyId, specialty, studyYear, StudentStatus.ACTIVE);
     }
 
-    public static Student reconstitute(
+    /** A new student of a known specialty with a given status (the staging tools set any). */
+    public static Student createNew(
             Long userId,
             String facultyNumber,
+            int specialtyId,
             String specialty,
             int studyYear,
             StudentStatus status) {
@@ -59,6 +63,29 @@ public class Student {
         return new Student(
                 userId,
                 facultyNumber,
+                specialtyId,
+                specialty,
+                studyYear,
+                status
+        );
+    }
+
+    /**
+     * A stored student. {@code specialtyId} may be null for a record written by a replica that
+     * predates V5.
+     */
+    public static Student reconstitute(
+            Long userId,
+            String facultyNumber,
+            Integer specialtyId,
+            String specialty,
+            int studyYear,
+            StudentStatus status) {
+
+        return new Student(
+                userId,
+                facultyNumber,
+                specialtyId,
                 specialty,
                 studyYear,
                 status
@@ -130,6 +157,11 @@ public class Student {
 
     public String getFacultyNumber() {
         return facultyNumber;
+    }
+
+    /** The specialty's id, or null for a record that predates V5. */
+    public Integer getSpecialtyId() {
+        return specialtyId;
     }
 
     public String getSpecialty() {

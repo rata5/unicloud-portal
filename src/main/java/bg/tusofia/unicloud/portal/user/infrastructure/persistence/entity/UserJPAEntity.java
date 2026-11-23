@@ -34,6 +34,9 @@ public class UserJPAEntity {
     @Column(name="permissions_mask", nullable = false)
     private Long permissionMask;
 
+    @Column(name = "faculty_code", length = 16)
+    private String facultyCode;
+
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
 
@@ -59,6 +62,7 @@ public class UserJPAEntity {
             String lastName,
             Role role,
             Long permissionMask,
+            String facultyCode,
             boolean enabled,
             LocalDateTime createdAt) {
 
@@ -69,6 +73,7 @@ public class UserJPAEntity {
         this.lastName = lastName;
         this.role = role.toString();
         this.permissionMask = permissionMask;
+        this.facultyCode = facultyCode;
         this.enabled = enabled;
         // Never written (insertable and updatable are false), but kept on the entity: saving an
         // existing user merges this object, and without it the saved user would come back with
@@ -83,6 +88,7 @@ public class UserJPAEntity {
     public String getLastName() { return lastName; }
     public String getRole() { return role; }
     public Long getPermissionMask() {return permissionMask; }
+    public String getFacultyCode() { return facultyCode; }
     public boolean isEnabled() { return enabled; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

@@ -38,7 +38,8 @@ public class UserRegistrationController {
                 request.password(),
                 request.firstName(),
                 request.lastName(),
-                request.role()
+                request.role(),
+                request.faculty()
         );
 
         String principalEmail = authentication.getName();

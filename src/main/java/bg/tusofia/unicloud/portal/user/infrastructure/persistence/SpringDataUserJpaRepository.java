@@ -11,4 +11,6 @@ public interface SpringDataUserJpaRepository
     Optional<UserJPAEntity> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    boolean existsByRoleAndFacultyCode(String role, String facultyCode);
 }

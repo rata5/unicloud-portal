@@ -1,5 +1,8 @@
 package bg.tusofia.unicloud.portal.staging;
 
+import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
+import bg.tusofia.unicloud.portal.academic.domain.Faculty;
+import bg.tusofia.unicloud.portal.academic.domain.Specialty;
 import bg.tusofia.unicloud.portal.exception.DuplicateResourceException;
 import bg.tusofia.unicloud.portal.exception.ResourceNotFoundException;
 import bg.tusofia.unicloud.portal.staging.dto.CreateStagingUserRequest;
@@ -12,6 +15,7 @@ import bg.tusofia.unicloud.portal.user.domain.Role;
 import bg.tusofia.unicloud.portal.user.domain.User;
 import bg.tusofia.unicloud.portal.user.domain.UserRepository;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,25 +36,32 @@ import java.util.Set;
 @Profile("staging")
 public class StagingUserService {
 
+    // A user's faculty: their own (teachers, deans, inspectors), else their specialty's (students)
     private static final String LIST_USERS = """
             SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.permissions_mask,
+                   COALESCE(u.faculty_code, sp.faculty_code) AS faculty,
                    s.user_id AS student_id
-            FROM users u LEFT JOIN students s ON s.user_id = u.id
+            FROM users u
+            LEFT JOIN students s ON s.user_id = u.id
+            LEFT JOIN specialties sp ON sp.id = s.specialty_id
             ORDER BY u.id""";
 
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
+    private final AcademicStructure academicStructure;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbc;
 
     public StagingUserService(
             UserRepository userRepository,
             StudentRepository studentRepository,
+            AcademicStructure academicStructure,
             PasswordEncoder passwordEncoder,
             JdbcTemplate jdbc) {
 
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
+        this.academicStructure = academicStructure;
         this.passwordEncoder = passwordEncoder;
         this.jdbc = jdbc;
     }
@@ -65,18 +76,32 @@ public class StagingUserService {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("User", "email", email);
         }
+        String faculty = academicStructure.facultyForNewUser(role, request.faculty());
+        Specialty specialty = request.student() == null
+                ? null
+                : academicStructure.requireSpecialty(request.student().specialty(), "student.specialty");
 
         User user = User.createNew(email, passwordEncoder.encode(request.password()),
-                request.firstName(), request.lastName(), role.name());
+                request.firstName(), request.lastName(), role.name(), faculty);
         if (request.permissions() != null) {
             setExactly(user, parsePermissions(request.permissions()));
         }
-        User saved = userRepository.save(user);
+        User saved;
+        try {
+            saved = userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            // Two requests for the same faculty's dean at once: the database's unique key decides
+            if (role == Role.DEAN) {
+                throw new DuplicateResourceException(AcademicStructure.secondDeanMessage(faculty));
+            }
+            throw e;
+        }
 
         if (request.student() != null) {
-            saveStudent(saved.getId(), request.student());
+            saveStudent(saved.getId(), request.student(), specialty);
+            faculty = specialty.facultyCode();
         }
-        return toResponse(saved, request.student() != null);
+        return toResponse(saved, faculty, request.student() != null);
     }
 
     @Transactional
@@ -85,7 +110,8 @@ public class StagingUserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         setExactly(user, parsePermissions(permissions));
         User saved = userRepository.save(user);
-        return toResponse(saved, studentRepository.findById(userId).isPresent());
+        String faculty = academicStructure.facultyOf(saved).map(Faculty::code).orElse(null);
+        return toResponse(saved, faculty, studentRepository.findById(userId).isPresent());
     }
 
     public List<StagingUserResponse> list() {
@@ -95,11 +121,12 @@ public class StagingUserService {
                 rs.getString("first_name"),
                 rs.getString("last_name"),
                 rs.getString("role"),
+                rs.getString("faculty"),
                 names(Permission.fromMask(rs.getLong("permissions_mask"))),
                 rs.getObject("student_id") != null));
     }
 
-    private void saveStudent(long userId, CreateStagingUserRequest.StudentRecord record) {
+    private void saveStudent(long userId, CreateStagingUserRequest.StudentRecord record, Specialty specialty) {
         StudentStatus status = record.status() == null || record.status().isBlank()
                 ? StudentStatus.ACTIVE
                 : parseStatus(record.status());
@@ -109,8 +136,8 @@ public class StagingUserService {
         if (taken != null && taken > 0) {
             throw new DuplicateResourceException("Student", "facultyNumber", facultyNumber);
         }
-        studentRepository.save(Student.reconstitute(userId, facultyNumber,
-                record.specialty().strip(), record.studyYear(), status));
+        studentRepository.save(Student.createNew(userId, facultyNumber,
+                specialty.id(), specialty.name(), record.studyYear(), status));
     }
 
     private static void setExactly(User user, Set<Permission> wanted) {
@@ -123,9 +150,9 @@ public class StagingUserService {
         }
     }
 
-    private static StagingUserResponse toResponse(User user, boolean student) {
+    private static StagingUserResponse toResponse(User user, String faculty, boolean student) {
         return new StagingUserResponse(user.getId(), user.getEmail(), user.getFirstName(),
-                user.getLastName(), user.getRole().name(),
+                user.getLastName(), user.getRole().name(), faculty,
                 names(Permission.fromMask(user.getPermissionsMask())), student);
     }
 

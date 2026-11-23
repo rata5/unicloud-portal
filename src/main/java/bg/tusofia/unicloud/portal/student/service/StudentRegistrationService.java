@@ -1,5 +1,7 @@
 package bg.tusofia.unicloud.portal.student.service;
 
+import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
+import bg.tusofia.unicloud.portal.academic.domain.Specialty;
 import bg.tusofia.unicloud.portal.student.domain.Student;
 import bg.tusofia.unicloud.portal.student.domain.StudentRepository;
 import bg.tusofia.unicloud.portal.student.domain.StudentStatus;
@@ -14,11 +16,14 @@ public class StudentRegistrationService {
 
     private final UserRegistrationService userRegistrationSvc;
     private final StudentRepository studentRepository;
+    private final AcademicStructure academicStructure;
 
     public StudentRegistrationService(UserRegistrationService userRegistrationSvc,
-                                      StudentRepository studentRepository) {
+                                      StudentRepository studentRepository,
+                                      AcademicStructure academicStructure) {
         this.userRegistrationSvc = userRegistrationSvc;
         this.studentRepository = studentRepository;
+        this.academicStructure = academicStructure;
     }
 
     public Student registerStudent(String email,
@@ -31,6 +36,8 @@ public class StudentRegistrationService {
                                    String studentStatus,
                                    String principalEmail) {
 
+        // Before the user is saved, so an unknown specialty leaves nothing behind
+        Specialty known = academicStructure.requireSpecialty(specialty, "specialty");
 
         User studentUser = userRegistrationSvc.register(
                 new RegisterUserCommand(
@@ -38,9 +45,11 @@ public class StudentRegistrationService {
                         password,
                         firstName,
                         lastName,
-                        Role.STUDENT.toString()), principalEmail);
+                        Role.STUDENT.toString(),
+                        null), principalEmail);
 
-        Student newStudent = Student.createNew(studentUser.getId(), facultyNumber, specialty, studyYear);
+        Student newStudent = Student.createNew(studentUser.getId(), facultyNumber, known.id(), known.name(),
+                studyYear);
 
         newStudent = studentRepository.save(newStudent);
 

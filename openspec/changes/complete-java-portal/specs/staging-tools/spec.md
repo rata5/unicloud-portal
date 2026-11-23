@@ -15,7 +15,7 @@ The staging tools SHALL exist only when the portal runs with staging mode on. Wi
 - **THEN** only that row is replaced, without a full page load
 
 ### Requirement: Staging API
-The staging API SHALL keep the Java routes and shapes, with no sign-in: `GET /api/v1/staging/roles` (`{"roleDefaults": {...}, "permissions": [...]}`, roles in the order `ADMIN, INSPECTOR, TEACHER, DEAN, STUDENT`, lists in bit order); `GET /api/v1/staging/users` (array ordered by id of `{id, email, firstName, lastName, role, faculty, permissions, student}`, `student` a boolean, never a password); `POST /api/v1/staging/users` (201); `PUT /api/v1/staging/users/{id}/permissions` (200, replaces the set exactly, 404 for an unknown id); `POST /api/v1/staging/sso-clients` (201, same body and answer as before, plus an optional boolean `directory`).
+The staging API SHALL keep the Java routes and shapes, with no sign-in: `GET /api/v1/staging/roles` (`{"roleDefaults": {...}, "permissions": [...]}`, roles in the order `ADMIN, INSPECTOR, TEACHER, DEAN, STUDENT`, lists in bit order); `GET /api/v1/staging/faculties` (array ordered by code of `{code, name, specialties: [{id, name}]}`, for the page's choices); `GET /api/v1/staging/users` (array ordered by id of `{id, email, firstName, lastName, role, faculty, permissions, student}`, `student` a boolean, never a password); `POST /api/v1/staging/users` (201); `PUT /api/v1/staging/users/{id}/permissions` (200, replaces the set exactly, 404 for an unknown id); `POST /api/v1/staging/sso-clients` (201, same body and answer as before, plus an optional boolean `directory`).
 
 #### Scenario: Roles listing
 - **WHEN** a team calls `GET /api/v1/staging/roles`

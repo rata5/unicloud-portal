@@ -3,8 +3,8 @@
 Everything is on one branch and one pull request into `main`. Each numbered group is its own commit (or a few), self-contained, so the review can go group by group. `[x]` means `main` (commit `dca60a4`) already does it.
 
 ## 0. Before any code
-- [ ] 0.1 Commit these specs and docs (the first commit)
-- [ ] 0.2 Tell module teams in `docs/sso.md` that `role` and `permissions` may gain values, that an unknown value means no access, and that `DEAN` is coming. Tell them before the pull request reaches production
+- [x] 0.1 Commit these specs and docs (the first commit)
+- [x] 0.2 Tell module teams in `docs/sso.md` that `role` and `permissions` may gain values, that an unknown value means no access, and that `DEAN` is coming. Tell them before the pull request reaches production
 
 ## Already on main
 - [x] Spring Authorization Server: authorize with PKCE, token, `/userinfo`, `/connect/logout`, JWKS with the RFC 7638 `kid`
@@ -18,13 +18,13 @@ Everything is on one branch and one pull request into `main`. Each numbered grou
 - [x] Flyway at start for MySQL and PostgreSQL; pool size set by configuration
 
 ## 1. Roles, DEAN and faculties
-- [ ] 1.1 `Permission.STUDENT_PROFILE_READ_FACULTY` at bit 10; `Role.DEAN` with its defaults; enum order `ADMIN, INSPECTOR, TEACHER, DEAN, STUDENT`
-- [ ] 1.2 V5 in both folders: `faculties`, `specialties` (seeded), `users.faculty_code`, `DEAN` in the role check, one dean per faculty, `students.specialty_id` filled from the text, `courses.faculty_code`
-- [ ] 1.3 JPA entities and repositories for faculties and specialties; a user's faculty (own, through the specialty, or none)
-- [ ] 1.4 `faculty` claim in the `unicloud` scope (`SsoUserClaims`), in the ID token and `/userinfo`
-- [ ] 1.5 Staging tools: `faculty` on create and in the users list, `DEAN`, 11 permissions, `specialty` by name or code, Bulgarian refusal of a second dean
-- [ ] 1.6 Tests on both databases: migration, dean uniqueness, claims, staging shapes
-- [ ] 1.7 `docs/sso.md`: `DEAN`, `faculty`, the roles table, "eleven permissions"
+- [x] 1.1 `Permission.STUDENT_PROFILE_READ_FACULTY` at bit 10; `Role.DEAN` with its defaults; enum order `ADMIN, INSPECTOR, TEACHER, DEAN, STUDENT`
+- [x] 1.2 V5 in both folders: `faculties`, `specialties` (seeded), `users.faculty_code`, `DEAN` in the role check, one dean per faculty, `students.specialty_id` filled from the text, `courses.faculty_code`
+- [x] 1.3 JPA entities and repositories for faculties and specialties; a user's faculty (own, through the specialty, or none)
+- [x] 1.4 `faculty` claim in the `unicloud` scope (`SsoUserClaims`), in the ID token and `/userinfo`
+- [x] 1.5 Staging tools: `faculty` on create and in the users list, `DEAN`, 11 permissions, `specialty` by name or code, Bulgarian refusal of a second dean
+- [x] 1.6 Tests on both databases: migration, dean uniqueness, claims, staging shapes (`DeanAndFacultyTests`; run locally on MySQL, PostgreSQL in CI)
+- [x] 1.7 `docs/sso.md`: `DEAN`, `faculty`, the roles table, "eleven permissions"
 
 ## 2. One cookie session
 - [ ] 2.1 Chain 3 with the session, form login at `/login` (Thymeleaf, Bulgarian), CSRF (`X-CSRF-Token` header, `_csrf` form field), `POST /logout`
@@ -83,3 +83,4 @@ See [react-hypermedia-ui/tasks.md](../react-hypermedia-ui/tasks.md).
 - [ ] 8.1 `docs/sso.md`: "How the portal does it" and "Not done yet" for the new design
 - [ ] 8.2 README: sign-in, the app, the new variables, the Node stage
 - [ ] 8.3 Tell module teams what changed. They do not register again
+- [ ] 8.4 In the release after this one: `students.specialty_id` and `courses.faculty_code` NOT NULL, drop `students.specialty` (V5 kept them nullable for replicas that predate it)

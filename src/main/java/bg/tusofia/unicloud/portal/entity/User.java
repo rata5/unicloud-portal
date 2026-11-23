@@ -16,7 +16,7 @@ import jakarta.persistence.Table;
 public class User {
 
     public enum Role {
-        STUDENT, TEACHER, INSPECTOR, ADMIN
+        STUDENT, TEACHER, DEAN, INSPECTOR, ADMIN
     }
 
     @Id

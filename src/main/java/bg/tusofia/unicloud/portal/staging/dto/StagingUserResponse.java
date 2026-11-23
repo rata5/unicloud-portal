@@ -9,6 +9,8 @@ public record StagingUserResponse(
         String firstName,
         String lastName,
         String role,
+        // The user's faculty code (for a student, the specialty's faculty), or null
+        String faculty,
         List<String> permissions,
         boolean student
 ) {

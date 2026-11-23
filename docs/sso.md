@@ -190,6 +190,7 @@ Check all of these. Most OIDC libraries do it for you:
 - Exchange the code from the backend only, over HTTPS.
 - Never pass portal tokens to browser JavaScript. Never put them in URLs or logs.
 - Use your own session for your own app. Use the `role` and `permissions` claims as input to your own authorization checks, not as a replacement for them.
+- Treat a role or permission you do not know as no access (see [User claims](#user-claims)).
 - A module's tokens work only for that module and for `/userinfo`. The portal's own API (`/api/v1/...`) refuses them.
 
 ## User claims
@@ -206,9 +207,14 @@ The claims are in the `id_token`, and `/userinfo` returns the same ones for the 
 | `given_name` | `profile` | `"Александър"` | |
 | `family_name` | `profile` | `"Стоянов"` | |
 | `name` | `profile` | `"Александър Стоянов"` | |
-| `role` | `unicloud` | `"STUDENT"` | One of `STUDENT`, `TEACHER`, `INSPECTOR`, `ADMIN` |
-| `permissions` | `unicloud` | `["STUDENT_PROFILE_READ_OWN", "COURSE_OFFERING_READ", "ENROLLMENT_REQUEST_CREATE"]` | The portal's permission names |
+| `role` | `unicloud` | `"STUDENT"` | Today one of `STUDENT`, `TEACHER`, `DEAN`, `INSPECTOR`, `ADMIN`. More may come |
+| `permissions` | `unicloud` | `["STUDENT_PROFILE_READ_OWN", "COURSE_OFFERING_READ", "ENROLLMENT_REQUEST_CREATE"]` | The portal's permission names, in a fixed order. More may come |
+| `faculty` | `unicloud` | `{"code": "FCST", "name": "Факултет по компютърни системи и технологии"}` | For students (through their specialty), teachers, deans and inspectors. Admins have none |
 | `student` | `unicloud` | `{"faculty_number": "121219001", "specialty": "Компютърни науки", "study_year": 2, "status": "ACTIVE"}` | Only for students. `status` is `ACTIVE`, `INTERRUPTED` or `GRADUATED` |
+
+**Unknown values mean no access.** The portal adds roles, permissions and claims over time. It never renames or removes one. Your code must accept a `role` or a permission it does not know, and grant nothing for it. Do not fail the login, and do not map it to a default role.
+
+**Who is who.** A teacher is `TEACHER`; the portal has no separate "professor". A dean (`DEAN`) leads one faculty and by default holds `STUDENT_PROFILE_READ_FACULTY` (the students of that faculty) and `COURSE_OFFERING_READ`. A faculty has at most one dean. The shared identifier of a course across UniCloud is its **course code**, for example `MATH1`.
 
 The ID token travels again in the logout URL (`id_token_hint`), where proxies may log it. That is one more reason to ask only for the scopes you use.
 
@@ -245,7 +251,7 @@ A module team tests its own changes on its own machine against the portal's **st
 
 1. Open `<staging>/staging`.
 2. Under **Register your module for single sign-on**, pick a client id (for example `module-x`) and register. Copy the secret: it is shown once. Register again under a new id if it is lost.
-3. Under **Create a test user**, pick a role. Its default permissions are ticked. Tick or untick any permission, and add a student record if the module needs one. Choose the password yourself.
+3. Under **Create a test user**, pick a role, and a faculty for a teacher, dean or inspector. Its default permissions are ticked. Tick or untick any permission, and add a student record if the module needs one: the specialty decides the student's faculty. Choose the password yourself.
 4. Point the module's OIDC library at staging:
 
 | Setting | Value |
@@ -266,15 +272,16 @@ Staging's free hosting sleeps after 15 minutes without visitors, so the first re
 | Request | What it does |
 |---|---|
 | `GET /api/v1/staging/roles` | Every permission, and each role's defaults |
-| `GET /api/v1/staging/users` | Every user, with role and permissions (never passwords) |
-| `POST /api/v1/staging/users` | Creates a user. Body: `email`, `password` (8 or more characters), `firstName`, `lastName`, `role`, and optionally `permissions` (a list of names: left out means the role's defaults, `[]` means none) and `student` (`facultyNumber`, `specialty`, `studyYear`, `status`) |
+| `GET /api/v1/staging/faculties` | Every faculty, with its specialties (`id` and `name`) |
+| `GET /api/v1/staging/users` | Every user, with role, faculty and permissions (never passwords) |
+| `POST /api/v1/staging/users` | Creates a user. Body: `email`, `password` (8 to 72 characters), `firstName`, `lastName`, `role`, `faculty` (a faculty code such as `FCST`, required for `TEACHER`, `DEAN` and `INSPECTOR`, left out for the others), and optionally `permissions` (a list of names: left out means the role's defaults, `[]` means none) and `student` (`facultyNumber`, `specialty` as a name such as `Компютърни науки` or an id, `studyYear`, `status`). A second dean for a faculty answers `409` |
 | `PUT /api/v1/staging/users/{id}/permissions` | Replaces the user's permissions. Body: `{"permissions": [...]}` |
 | `POST /api/v1/staging/sso-clients` | Registers a module, like the admin route in the next section. Returns the secret once |
 
 ```bash
 curl -X POST <staging>/api/v1/staging/users -H 'Content-Type: application/json' -d '{
   "email": "x.teacher@test.tu-sofia.bg", "password": "a-long-password",
-  "firstName": "Test", "lastName": "Teacher", "role": "TEACHER",
+  "firstName": "Test", "lastName": "Teacher", "role": "TEACHER", "faculty": "FCST",
   "permissions": ["COURSE_OFFERING_READ", "STUDENT_PROFILE_READ_ANY"]}'
 ```
 
@@ -287,9 +294,10 @@ curl -X POST <staging>/api/v1/staging/users -H 'Content-Type: application/json' 
 | `STUDENT` | `STUDENT_PROFILE_READ_OWN`, `COURSE_OFFERING_READ`, `ENROLLMENT_REQUEST_CREATE` |
 | `TEACHER` | `COURSE_OFFERING_READ`, `STUDENT_PROFILE_READ_ENROLLED`, `ENROLLMENT_REQUEST_ACCEPT_REJECT` |
 | `INSPECTOR` | `STUDENT_CREATE`, `STUDENT_PROFILE_READ_ANY`, `COURSE_CREATE_MODIFY`, `COURSE_OFFERING_READ`, `COURSE_OFFERING_CREATE_MODIFY` |
+| `DEAN` | `STUDENT_PROFILE_READ_FACULTY`, `COURSE_OFFERING_READ` |
 | `ADMIN` | `STAFF_CREATE` |
 
-On staging any user can have any mix of the ten permissions, whatever the role. A token carries the permissions the user had when it was issued, so log in again after changing them.
+On staging any user can have any mix of the eleven permissions, whatever the role. A token carries the permissions the user had when it was issued, so log in again after changing them.
 
 ## Going to production
 

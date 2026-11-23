@@ -36,6 +36,7 @@
             <div><label for="first-name">First name</label><input id="first-name" required></div>
             <div><label for="last-name">Last name</label><input id="last-name" required></div>
             <div><label for="role">Role</label><select id="role"></select></div>
+            <div id="faculty-field"><label for="faculty">Faculty (teachers, deans and inspectors; one dean per faculty)</label><select id="faculty"></select></div>
         </div>
         <fieldset>
             <legend>Permissions (the role's defaults are ticked; change them freely)</legend>
@@ -45,7 +46,7 @@
             <legend>Student record (optional, students only)</legend>
             <div class="grid2">
                 <div><label for="faculty-number">Faculty number</label><input id="faculty-number"></div>
-                <div><label for="specialty">Specialty</label><input id="specialty"></div>
+                <div><label for="specialty">Specialty (it decides the student's faculty)</label><select id="specialty"></select></div>
                 <div><label for="study-year">Study year (1 to 6)</label><input id="study-year" type="number" min="1" max="6"></div>
                 <div><label for="status">Status</label>
                     <select id="status"><option>ACTIVE</option><option>INTERRUPTED</option><option>GRADUATED</option></select></div>
@@ -57,7 +58,7 @@
 
     <h2>Users</h2>
     <table>
-        <thead><tr><th>Id</th><th>Email</th><th>Role</th><th>Permissions</th><th></th></tr></thead>
+        <thead><tr><th>Id</th><th>Email</th><th>Role</th><th>Faculty</th><th>Permissions</th><th></th></tr></thead>
         <tbody id="users"></tbody>
     </table>
 
@@ -79,6 +80,7 @@
     const $ = (id) => document.getElementById(id);
     let roleDefaults = {};
     let allPermissions = [];
+    const FACULTY_ROLES = ['TEACHER', 'DEAN', 'INSPECTOR'];
 
     async function call(method, url, body) {
         const response = await fetch(url, {
@@ -123,6 +125,7 @@
         const role = $('role').value;
         permissionBoxes($('perms'), roleDefaults[role] || [], 'new-');
         $('student-fields').hidden = role !== 'STUDENT';
+        $('faculty-field').hidden = !FACULTY_ROLES.includes(role);
     }
 
     function cell(text, className) {
@@ -147,7 +150,7 @@
             edit.addEventListener('click', () => openEditor(tr, user));
             actions.append(edit);
             tr.append(cell(user.id), cell(user.email + (user.student ? ' (student record)' : '')), cell(user.role),
-                cell(user.permissions.join(', ') || 'none', 'perm-cell'), actions);
+                cell(user.faculty || ''), cell(user.permissions.join(', ') || 'none', 'perm-cell'), actions);
             body.append(tr);
         }
     }
@@ -160,7 +163,7 @@
         const editRow = document.createElement('tr');
         editRow.className = 'edit-row';
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 6;
         const boxes = document.createElement('div');
         boxes.className = 'perms';
         permissionBoxes(boxes, user.permissions, `u${user.id}-`);
@@ -195,10 +198,13 @@
             role,
             permissions: ticked($('perms')),
         };
+        if (FACULTY_ROLES.includes(role)) {
+            request.faculty = $('faculty').value;
+        }
         if (role === 'STUDENT' && $('faculty-number').value.trim()) {
             request.student = {
                 facultyNumber: $('faculty-number').value.trim(),
-                specialty: $('specialty').value.trim(),
+                specialty: $('specialty').value,
                 studyYear: Number($('study-year').value),
                 status: $('status').value,
             };
@@ -239,6 +245,22 @@
             const roles = await call('GET', '/api/v1/staging/roles');
             roleDefaults = roles.roleDefaults;
             allPermissions = roles.permissions;
+            const faculties = await call('GET', '/api/v1/staging/faculties');
+            for (const faculty of faculties) {
+                const option = document.createElement('option');
+                option.value = faculty.code;
+                option.textContent = `${faculty.code}: ${faculty.name}`;
+                $('faculty').append(option);
+                const group = document.createElement('optgroup');
+                group.label = faculty.code;
+                for (const specialty of faculty.specialties) {
+                    const item = document.createElement('option');
+                    item.value = String(specialty.id);
+                    item.textContent = specialty.name;
+                    group.append(item);
+                }
+                $('specialty').append(group);
+            }
             for (const role of Object.keys(roleDefaults)) {
                 const option = document.createElement('option');
                 option.value = role;

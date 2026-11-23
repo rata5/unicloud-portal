@@ -5,5 +5,7 @@ public record RegisterUserCommand(
         String password,
         String firstName,
         String lastName,
-        String role
+        String role,
+        // The faculty code of a teacher, dean or inspector; null for anyone else
+        String faculty
 ) {}

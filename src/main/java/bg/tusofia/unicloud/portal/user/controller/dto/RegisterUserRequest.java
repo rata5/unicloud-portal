@@ -21,5 +21,9 @@ public record RegisterUserRequest(
         String lastName,
 
         @NotBlank
-        String role
+        String role,
+
+        // A faculty code (for example FCST): required for TEACHER, DEAN and INSPECTOR, absent otherwise
+        @Size(max = 16)
+        String faculty
 ) {}

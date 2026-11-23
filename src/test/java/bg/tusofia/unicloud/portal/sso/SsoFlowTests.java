@@ -156,6 +156,10 @@ class SsoFlowTests {
         assertThat(idToken.get("role").asString()).isEqualTo("STUDENT");
         assertThat(idToken.get("permissions").toString()).contains("ENROLLMENT_REQUEST_CREATE");
         assertThat(idToken.get("student").get("faculty_number").asString()).isEqualTo("121219001");
+        // A student's faculty comes from the specialty (Компютърни науки is FCST's, V5)
+        assertThat(idToken.get("faculty").get("code").asString()).isEqualTo("FCST");
+        assertThat(idToken.get("faculty").get("name").asString())
+                .isEqualTo("Факултет по компютърни системи и технологии");
 
         // 5. The module's access token reads /userinfo, but not the portal's own API
         String accessToken = tokens.get("access_token").asString();
@@ -163,7 +167,8 @@ class SsoFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sub").value(String.valueOf(STUDENT_ID)))
                 .andExpect(jsonPath("$.family_name").value("Стоянов"))
-                .andExpect(jsonPath("$.student.study_year").value(2));
+                .andExpect(jsonPath("$.student.study_year").value(2))
+                .andExpect(jsonPath("$.faculty.code").value("FCST"));
         mockMvc.perform(get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized());
 
@@ -333,6 +338,7 @@ class SsoFlowTests {
         assertThat(idToken.has("family_name")).as("profile not asked for").isFalse();
         assertThat(idToken.has("role")).as("unicloud not asked for").isFalse();
         assertThat(idToken.has("student")).as("unicloud not asked for").isFalse();
+        assertThat(idToken.has("faculty")).as("unicloud not asked for").isFalse();
     }
 
     @Test

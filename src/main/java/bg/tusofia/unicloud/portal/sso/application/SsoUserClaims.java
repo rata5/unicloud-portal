@@ -1,5 +1,7 @@
 package bg.tusofia.unicloud.portal.sso.application;
 
+import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
+import bg.tusofia.unicloud.portal.academic.domain.Faculty;
 import bg.tusofia.unicloud.portal.student.domain.Student;
 import bg.tusofia.unicloud.portal.student.domain.StudentRepository;
 import bg.tusofia.unicloud.portal.user.domain.Permission;
@@ -22,7 +24,8 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code profile}: given_name, family_name, name</li>
  *   <li>{@code email}: email</li>
- *   <li>{@code unicloud}: role, permissions and, for students, student</li>
+ *   <li>{@code unicloud}: role, permissions, faculty (for everyone who has one: teachers,
+ *       deans, inspectors, and students through their specialty) and, for students, student</li>
  * </ul>
  *
  * <p>Only plain {@link String}, {@link Integer}, {@link ArrayList} and {@link LinkedHashMap}
@@ -31,15 +34,21 @@ import java.util.Optional;
 @Service
 public class SsoUserClaims {
 
-    /** The scope for the portal's own claims: role, permissions, student record. */
+    /** The scope for the portal's own claims: role, permissions, faculty, student record. */
     public static final String UNICLOUD_SCOPE = "unicloud";
 
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
+    private final AcademicStructure academicStructure;
 
-    public SsoUserClaims(UserRepository userRepository, StudentRepository studentRepository) {
+    public SsoUserClaims(
+            UserRepository userRepository,
+            StudentRepository studentRepository,
+            AcademicStructure academicStructure) {
+
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
+        this.academicStructure = academicStructure;
     }
 
     /**
@@ -67,8 +76,12 @@ public class SsoUserClaims {
         if (scopes.contains(UNICLOUD_SCOPE)) {
             claims.put("role", user.getRole().name());
             claims.put("permissions", permissions(user));
-            studentRepository.findById(user.getId())
-                    .ifPresent(student -> claims.put("student", student(student)));
+            Optional<Student> student = studentRepository.findById(user.getId());
+            Optional<Faculty> faculty = user.getFacultyCode() != null
+                    ? academicStructure.faculty(user.getFacultyCode())
+                    : student.flatMap(academicStructure::facultyOf);
+            faculty.ifPresent(f -> claims.put("faculty", faculty(f)));
+            student.ifPresent(s -> claims.put("student", student(s)));
         }
         return claims;
     }
@@ -79,6 +92,13 @@ public class SsoUserClaims {
             names.add(permission.name());
         }
         return names;
+    }
+
+    private static Map<String, Object> faculty(Faculty faculty) {
+        Map<String, Object> claims = new LinkedHashMap<>();
+        claims.put("code", faculty.code());
+        claims.put("name", faculty.name());
+        return claims;
     }
 
     private static Map<String, Object> student(Student student) {

@@ -13,10 +13,13 @@ import java.util.List;
 /**
  * A test user for staging.
  *
- * @param role        STUDENT, TEACHER, INSPECTOR or ADMIN
+ * @param role        ADMIN, INSPECTOR, TEACHER, DEAN or STUDENT, in any letter case
+ * @param faculty     a faculty code such as FCST: required for TEACHER, DEAN and INSPECTOR, absent
+ *                    otherwise (a student's faculty comes from the specialty)
  * @param permissions the exact permissions, by name; null gives the role's defaults, an empty
  *                    list gives none
- * @param student     the academic record, only for role STUDENT; may be null
+ * @param student     the academic record, only for role STUDENT; may be null. Its specialty is a
+ *                    specialty's name or id (GET /api/v1/staging/faculties lists them)
  */
 public record CreateStagingUserRequest(
         @NotBlank @Email @Size(max = 254) String email,
@@ -24,6 +27,7 @@ public record CreateStagingUserRequest(
         @NotBlank @Size(max = 100) String firstName,
         @NotBlank @Size(max = 100) String lastName,
         @NotBlank String role,
+        @Size(max = 16) String faculty,
         List<@NotBlank String> permissions,
         @Valid StudentRecord student
 ) {

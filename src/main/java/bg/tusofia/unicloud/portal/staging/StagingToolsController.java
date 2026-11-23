@@ -1,5 +1,9 @@
 package bg.tusofia.unicloud.portal.staging;
 
+import bg.tusofia.unicloud.portal.academic.application.AcademicStructure;
+import bg.tusofia.unicloud.portal.academic.domain.Faculty;
+import bg.tusofia.unicloud.portal.academic.domain.Specialty;
+import bg.tusofia.unicloud.portal.staging.dto.StagingFacultyResponse;
 import bg.tusofia.unicloud.portal.sso.application.SsoClientRegistrationService;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientRequest;
 import bg.tusofia.unicloud.portal.sso.controller.dto.RegisterSsoClientResponse;
@@ -40,7 +44,8 @@ import java.util.Map;
  * <ul>
  *   <li>{@code GET /staging}: the web page for everything below</li>
  *   <li>{@code GET /api/v1/staging/roles}: roles, their default permissions, every permission</li>
- *   <li>{@code GET /api/v1/staging/users}: every user, with role and permissions</li>
+ *   <li>{@code GET /api/v1/staging/faculties}: faculties and their specialties</li>
+ *   <li>{@code GET /api/v1/staging/users}: every user, with role, faculty and permissions</li>
  *   <li>{@code POST /api/v1/staging/users}: create a user with any role and any permissions</li>
  *   <li>{@code PUT /api/v1/staging/users/{id}/permissions}: replace a user's permissions</li>
  *   <li>{@code POST /api/v1/staging/sso-clients}: register a module for single sign-on</li>
@@ -55,13 +60,16 @@ public class StagingToolsController {
 
     private final StagingUserService userService;
     private final SsoClientRegistrationService clientRegistrationService;
+    private final AcademicStructure academicStructure;
 
     public StagingToolsController(
             StagingUserService userService,
-            SsoClientRegistrationService clientRegistrationService) {
+            SsoClientRegistrationService clientRegistrationService,
+            AcademicStructure academicStructure) {
 
         this.userService = userService;
         this.clientRegistrationService = clientRegistrationService;
+        this.academicStructure = academicStructure;
         log.warn("Staging tools are ON: anyone can create users and SSO clients at /staging. "
                 + "This must never happen on production.");
     }
@@ -87,6 +95,20 @@ public class StagingToolsController {
             all.add(permission.name());
         }
         return Map.of("roleDefaults", defaults, "permissions", all);
+    }
+
+    @GetMapping("/api/v1/staging/faculties")
+    public List<StagingFacultyResponse> faculties() {
+        List<Specialty> specialties = academicStructure.specialties();
+        List<StagingFacultyResponse> result = new ArrayList<>();
+        for (Faculty faculty : academicStructure.faculties()) {
+            List<StagingFacultyResponse.SpecialtyItem> own = specialties.stream()
+                    .filter(specialty -> specialty.facultyCode().equals(faculty.code()))
+                    .map(specialty -> new StagingFacultyResponse.SpecialtyItem(specialty.id(), specialty.name()))
+                    .toList();
+            result.add(new StagingFacultyResponse(faculty.code(), faculty.name(), own));
+        }
+        return result;
     }
 
     @GetMapping("/api/v1/staging/users")
