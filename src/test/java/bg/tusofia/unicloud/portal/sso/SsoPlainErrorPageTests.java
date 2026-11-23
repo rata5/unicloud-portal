@@ -43,6 +43,26 @@ class SsoPlainErrorPageTests {
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.headers().firstValue("Location")).isEmpty();
+        // The portal's error page, with a hint for the module's developer
+        assertThat(response.body()).contains("Грешка 400").contains("Проверете регистрацията му")
+                .contains("href=\"/assets/app.css\"");
+    }
+
+    @Test
+    void aBrowserGetsTheErrorPageInBulgarian() throws Exception {
+        // Without the staging profile the staging page does not exist
+        HttpResponse<String> missing = get("/staging");
+        assertThat(missing.statusCode()).isEqualTo(404);
+        assertThat(missing.body()).contains("Грешка 404").contains("Страницата не е намерена.");
+
+        // A sign-in form without its CSRF token: the form expired
+        HttpResponse<String> expired = http.send(HttpRequest.newBuilder(uri("/login"))
+                .header("Accept", "text/html")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("email=x%40tu-sofia.bg&password=whatever-1"))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(expired.statusCode()).isEqualTo(403);
+        assertThat(expired.body()).contains("Грешка 403").contains("Формулярът е изтекъл");
     }
 
     @Test

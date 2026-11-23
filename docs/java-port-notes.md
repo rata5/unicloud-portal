@@ -71,6 +71,8 @@ Groups 2, 3 and 6 (backend only), ported from the Rust code:
 - `docs/sso.md` ("Logout", "How the portal does it", "Not done yet", troubleshooting) and the README (sign-in, demo users, the app with `npm run dev`, the new settings, the `web` job) describe the new design (tasks 8.1, 8.2).
 - The full suite has 135 tests.
 - The sign-in, password and logout pages now look as on staging: the fork's page shell (top bar, footer) as `templates/layout.html`, its stylesheet copied unchanged to `static/assets/app.css`, its markup and texts. No htmx: the pages are plain forms.
+- Error pages for browsers in the same look (`ErrorPages`, `error.html`), with the fork's messages: a bad module login names client_id and redirect_uri, an old form says it expired.
+- The full suite has 136 tests.
 
 ## Next
 

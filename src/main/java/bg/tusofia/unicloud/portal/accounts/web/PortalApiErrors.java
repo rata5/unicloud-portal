@@ -1,5 +1,6 @@
 package bg.tusofia.unicloud.portal.accounts.web;
 
+import bg.tusofia.unicloud.portal.web.ErrorPages;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -39,6 +40,10 @@ public final class PortalApiErrors {
     public static AccessDeniedHandler accessDenied() {
         return (request, response, exception) -> {
             if (!isApi(request)) {
+                if (exception instanceof CsrfException) {
+                    // As on the fork: an old form (the session ended or changed) says so
+                    request.setAttribute(ErrorPages.MESSAGE, EXPIRED);
+                }
                 response.sendError(HttpServletResponse.SC_FORBIDDEN);
                 return;
             }
