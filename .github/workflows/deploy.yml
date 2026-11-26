@@ -252,3 +252,161 @@ jobs:
           done
           echo "The new version did not answer within 5 minutes" >&2
           exit 1
+
+  function:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is there a function yet?
+        id: has
+        run: |
+          if [[ -f functions/document-check/Dockerfile ]]; then
+            echo "dockerfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::functions/document-check/Dockerfile does not exist yet, so there is nothing to build"
+            echo "dockerfile=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -f functions/document-check/package.json ]]; then
+            echo "node=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "node=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.has.outputs.node == 'true'
+        with:
+          node-version: 22
+      - name: Test
+        if: steps.has.outputs.node == 'true'
+        working-directory: functions/document-check
+        run: |
+          if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm run test --if-present
+      - name: Build the image
+        if: steps.has.outputs.dockerfile == 'true'
+        run: docker build -t document-check functions/document-check
+
+  deploy-staging-check:
+    needs: function
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: staging-check
+    permissions:
+      contents: read
+      id-token: write                    
+    env:
+      DEPLOY_ENV: staging
+      PORTAL_URL: ${{ vars.PORTAL_URL_STAGING }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is Google Cloud set up?
+        id: gcp
+        run: |
+          if [[ -z "${{ vars.GCP_PROJECT_ID }}" || -z "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]]; then
+            echo "::warning::The GCP_* variables are not set, so the document check was not deployed (README, 'The pipeline')"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: google-github-actions/auth@v2
+        if: steps.gcp.outputs.ready == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+        if: steps.gcp.outputs.ready == 'true'
+      - name: Deploy the document check
+        if: steps.gcp.outputs.ready == 'true'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+        run: infra/deploy-function.sh
+
+  deploy-staging-site:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: staging-site
+    permissions:
+      contents: read
+    env:
+      PORTAL_URL: ${{ vars.PORTAL_URL_STAGING }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the public site together
+        if: env.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != ''
+        run: infra/build-public-site.sh site
+      - uses: cloudflare/wrangler-action@v3
+        if: env.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != ''
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=unicloud-public --branch=staging --commit-hash=${{ github.sha }} --commit-dirty=true
+      - name: Cloudflare is not set up
+        if: env.CLOUDFLARE_API_TOKEN == '' || vars.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set, so the public site was not deployed"
+
+  deploy-check:
+    needs: function
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production-check
+    permissions:
+      contents: read
+      id-token: write                    
+    env:
+      DEPLOY_ENV: prod
+      PORTAL_URL: ${{ vars.PORTAL_URL_PRODUCTION }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Is Google Cloud set up?
+        id: gcp
+        run: |
+          if [[ -z "${{ vars.GCP_PROJECT_ID }}" || -z "${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]]; then
+            echo "::warning::The GCP_* variables are not set, so the document check was not deployed (README, 'The pipeline')"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: google-github-actions/auth@v2
+        if: steps.gcp.outputs.ready == 'true'
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+        if: steps.gcp.outputs.ready == 'true'
+      - name: Deploy the document check
+        if: steps.gcp.outputs.ready == 'true'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+        run: infra/deploy-function.sh
+
+  deploy-site:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production-site
+    permissions:
+      contents: read
+    env:
+      PORTAL_URL: ${{ vars.PORTAL_URL_PRODUCTION }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the public site together
+        if: env.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != ''
+        run: infra/build-public-site.sh site
+      - uses: cloudflare/wrangler-action@v3
+        if: env.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != ''
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=unicloud-public --branch=main --commit-hash=${{ github.sha }} --commit-dirty=true
+      - name: Cloudflare is not set up
+        if: env.CLOUDFLARE_API_TOKEN == '' || vars.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set, so the public site was not deployed"
